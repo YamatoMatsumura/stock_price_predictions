@@ -1,5 +1,5 @@
 # Stock Price Predictions
-![Graph showing output results](readme_images\readme_image.png)
+![Graph showing output results](readme_images/output_graph.png)
 ## Description
 This project tackles the age old problem of trying to beat the stock market. Instead of traditional methods of manual analysis of stock metrics, this project incorporates AI by using a LSTM neural network to predict stock closing prices.
 
