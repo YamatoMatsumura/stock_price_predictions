@@ -47,18 +47,50 @@ def createDataset(data, dataScaler, labelScaler):
 
     return dataset
 
-def getNumFeatures(data):
-    return data.shape[1]
+def splitDataset(dataset):
+    # Convert to list to help split into training and testing
+    dataset = list(dataset)
+
+    # Grab last element for testing
+    testingDataset = dataset[-1:]
+
+    # Convert into np array since dataset is tuples of data, labels
+    testingData = np.array([x[0].numpy() for x in testingDataset])
+    testingLabels = np.array([x[1].numpy() for x in testingDataset])
+
+    # Extract remaining data to use as training and split into data and labels
+    trainingDataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
+    trainingData = np.array([x[0].numpy() for x in trainingDataset])
+    trainingLabels = np.array([x[1].numpy() for x in trainingDataset])
+
+    # Convert to tf.data.Dataset to feed into neural network
+    trainingDataset = tf.data.Dataset.from_tensor_slices((trainingData, trainingLabels))
+    testingDataset = tf.data.Dataset.from_tensor_slices((testingData, testingLabels))
+
+    return trainingDataset, testingDataset
+
+def extractDataAndLabels(dataset):
+    data = []
+    labels = []
+
+    for d, l in dataset:
+        data.append(d.numpy())
+        labels.append(l.numpy())
+    
+    data = np.array(data)
+    labels = np.array(labels)
+    
+    return data, labels
 
 def getScaler():
     return MinMaxScaler()
 
-def logData(data, ticker):
+def logData(newData, ticker):
     # Check if existing data in trained_data
     try:
         # Load and add onto data
-        df = pd.read_csv('data/' + ticker + '/trained_data.csv')
-        data = pd.concat([df, data], ignore_index=True)
+        existingData = pd.read_csv('data/' + ticker + '/trained_data.csv')
+        data = pd.concat([existingData, newData], ignore_index=True)
 
         # Merge duplicate date days and fill in data by cross referencing rows
         data = data.groupby('Date').apply(lambda x: x.ffill().bfill().iloc[0]).reset_index(drop=True)
