@@ -3,24 +3,15 @@ import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
 
-import neural_network as model
+import neural_network as neuralNetwork
 import result_saver as saver
 import data_utils as dataUtils
 from stock_data_container import StockDataContainer
-from config import SEQUENCE_LENGTH
-
-
-STOCK_NAMES = ['AAPL', 'AMZN', 'COIN', 'GOOG', 'META', 'MSFT', 'NVDA', 'SPOT']  # List of stock names to look at
-EPOCHS = 70  # Epochs to train model for
-EARLY_STOP_PATIENCE = 30  # Stops model training if reaches x amount of epochs without improvement
-BATCH_SIZE = 1  # Batch size for data set
-
-UPDATE_DATA = False  # Updates training data to pull newest data
-
-CREATE_NEW_MODEL = True  # Does Hyperparm tuning & model.fit
-TESTING = False  # Loads previous hyperparm tuning session
-LOADING_MODEL = False # Loads previous model
-TESTING_NEW_MODEL = False  # Creates model in nn.getManualModel(). No Hyperparm tuning
+from config import (
+    SEQUENCE_LENGTH, STOCK_NAMES, EPOCHS, EARLY_STOP_PATIENCE, 
+    BATCH_SIZE, UPDATE_DATA, CREATE_NEW_MODEL, TESTING, 
+    LOADING_MODEL, TESTING_CUSTOM_MODEL
+)
 
 
 def main():
@@ -30,30 +21,20 @@ def main():
         if UPDATE_DATA:
             stockData.updateAllData()        
             dataUtils.logData(stockData.data, stockData.ticker)
+        else:
+            stockData.getExistingData()
 
         # Create Dataset
-        dataScaler = dataUtils.getScaler()
-        labelScaler = dataUtils.getScaler()
-        dataset = dataUtils.createDataset(stockData.data, dataScaler, labelScaler)
+        if stockData.data.empty:
+            print("DatasetError: no data to create dataset with")
+            return
+        else:
+            dataScaler = dataUtils.getScaler()
+            labelScaler = dataUtils.getScaler()
+            dataset = dataUtils.createDataset(stockData.data, dataScaler, labelScaler)
 
-        # Convert to list to help split into training and testing
-        dataset = list(dataset)
-
-        # Grab last element for testing
-        testingDataset = dataset[-1:]
-
-        # Convert into np array since dataset is tuples of data, labels
-        testingData = np.array([x[0].numpy() for x in testingDataset])
-        testingLabels = np.array([x[1].numpy() for x in testingDataset])
-
-        # Extract remaining data to use as training and split into data and labels
-        trainingDataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
-        trainingData = np.array([x[0].numpy() for x in trainingDataset])
-        trainingLabels = np.array([x[1].numpy() for x in trainingDataset])
-
-        # Convert to tf.data.Dataset to feed into neural network
-        trainingDataset = tf.data.Dataset.from_tensor_slices((trainingData, trainingLabels))
-        testingDataset = tf.data.Dataset.from_tensor_slices((testingData, testingLabels))
+        # Split Dataset into training and testing sets
+        trainingDataset, testingDataset = dataUtils.splitDataset(dataset)
 
         # Create new directory to house training session data
         dirPath = saver.createNewDir(stockData.ticker)
@@ -64,7 +45,7 @@ def main():
             
             # Initialize tuner
             tuner = kt.Hyperband(
-                model.getModel,
+                neuralNetwork.getModel(SEQUENCE_LENGTH, stockData.data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
@@ -88,13 +69,12 @@ def main():
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
 
         elif TESTING:
-            
             # Choose version to load
             version = input("Select tuning session to load: ")
 
             # Initialize tuner from correct version
             tuner = kt.Hyperband(
-                model.getModel,
+                neuralNetwork.getModel(SEQUENCE_LENGTH, stockData.data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
@@ -127,8 +107,8 @@ def main():
             #*****************************************************************
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
         
-        elif TESTING_NEW_MODEL:
-            model = model.getManualModel()
+        elif TESTING_CUSTOM_MODEL:
+            model = neuralNetwork.getManualModel()
 
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, validation_data=(testingDataset))
 
@@ -148,6 +128,9 @@ def main():
             # plt.show()
         
 
+        # Extract data and labels from testing data set
+        testingData, testingLabels = dataUtils.extractDataAndLabels(testingDataset)
+
         # Reduce data dimensions from 4D to 3D since indexing dataset made list versions 4D
         testingData = testingData.reshape(-1, testingData.shape[2], testingData.shape[3])
         # Grab first element in case testing size > 1 since only graphing first set
@@ -157,8 +140,9 @@ def main():
 
         # Reduce label dimensions from 3D to 2D since indexing it made it 3D
         testingLabels = testingLabels.reshape(-1, testingLabels.shape[2])
-        # Repeat same first element + expanding back to 3D for labels
+        # Grab first element in case testing size > 1 since only graphing first set
         testingLabels = testingLabels[0]
+        # Expand back into 2D since indexing first element made it 1D
         testingLabels = np.expand_dims(testingLabels, axis=0)
 
         # Make predictions
