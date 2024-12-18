@@ -1,24 +1,25 @@
-import data
-from data import StockDataContainer
-from neural_network import NeuralNetwork
-import result_saver as saver
 import matplotlib.pyplot as plt
-
 import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
 
+import neural_network as model
+import result_saver as saver
+import data_utils as dataUtils
+from stock_data_container import StockDataContainer
+from config import SEQUENCE_LENGTH
 
-STOCK_NAMES = ['SPOT']  # List of stock names to look at
+
+STOCK_NAMES = ['AAPL', 'AMZN', 'COIN', 'GOOG', 'META', 'MSFT', 'NVDA', 'SPOT']  # List of stock names to look at
 EPOCHS = 70  # Epochs to train model for
 EARLY_STOP_PATIENCE = 30  # Stops model training if reaches x amount of epochs without improvement
 BATCH_SIZE = 1  # Batch size for data set
 
 UPDATE_DATA = False  # Updates training data to pull newest data
 
-CREATE_NEW_MODEL = False  # Does Hyperparm tuning & model.fit
+CREATE_NEW_MODEL = True  # Does Hyperparm tuning & model.fit
 TESTING = False  # Loads previous hyperparm tuning session
-LOADING_MODEL = True # Loads previous model
+LOADING_MODEL = False # Loads previous model
 TESTING_NEW_MODEL = False  # Creates model in nn.getManualModel(). No Hyperparm tuning
 
 
@@ -27,17 +28,13 @@ def main():
         # Initialize stock data container
         stockData = StockDataContainer(stock)
         if UPDATE_DATA:
-            stockData.updateAllData()
+            stockData.updateAllData()        
+            dataUtils.logData(stockData.data, stockData.ticker)
 
-        # Create neural network from data
-        stockPredictor = NeuralNetwork(stockData)
-
-        # Log trained data to avoid retraining from fresh every time
-        stockPredictor.logData()
-
-
-        # Get dataset
-        dataset = stockPredictor.getDataset()
+        # Create Dataset
+        dataScaler = dataUtils.getScaler()
+        labelScaler = dataUtils.getScaler()
+        dataset = dataUtils.createDataset(stockData.data, dataScaler, labelScaler)
 
         # Convert to list to help split into training and testing
         dataset = list(dataset)
@@ -50,7 +47,7 @@ def main():
         testingLabels = np.array([x[1].numpy() for x in testingDataset])
 
         # Extract remaining data to use as training and split into data and labels
-        trainingDataset = dataset[:-1 * data.WINDOW_SIZE]  # Space out Window size amount to make sure no part of testing dataset is in training
+        trainingDataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
         trainingData = np.array([x[0].numpy() for x in trainingDataset])
         trainingLabels = np.array([x[1].numpy() for x in trainingDataset])
 
@@ -59,7 +56,7 @@ def main():
         testingDataset = tf.data.Dataset.from_tensor_slices((testingData, testingLabels))
 
         # Create new directory to house training session data
-        dirPath = saver.createNewDir(stockPredictor)
+        dirPath = saver.createNewDir(stockData.ticker)
 
         # Initialize early stopping
         earlyStopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=EARLY_STOP_PATIENCE, restore_best_weights=True)
@@ -67,7 +64,7 @@ def main():
             
             # Initialize tuner
             tuner = kt.Hyperband(
-                stockPredictor.getModel,
+                model.getModel,
                 objective='loss',
                 max_epochs=50,
                 factor=3,
@@ -90,9 +87,6 @@ def main():
             # Fit model on training data
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
 
-            # Keep track of model for result saving
-            stockPredictor.model = model
-
         elif TESTING:
             
             # Choose version to load
@@ -100,11 +94,11 @@ def main():
 
             # Initialize tuner from correct version
             tuner = kt.Hyperband(
-                stockPredictor.getModel,
+                model.getModel,
                 objective='loss',
                 max_epochs=50,
                 factor=3,
-                directory=f'data/{stockPredictor.ticker}/{str(version)}',
+                directory=f'data/{stockData.ticker}/{str(version)}',
                 project_name=f"Hyperparam Tuning",
             )
 
@@ -118,29 +112,23 @@ def main():
             # Fit model on training data
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
 
-            # Keep track of model for result saving
-            stockPredictor.model = model
-
         elif LOADING_MODEL:
             
             # Load model
             version = input("Select version to load (0 for old): ")
 
             if version == 0:
-                model = tf.keras.models.load_model(f'data/{stockPredictor.ticker}/model.keras')
-            model = tf.keras.models.load_model(f'data/{stockPredictor.ticker}/{str(version)}/model.keras')
+                model = tf.keras.models.load_model(f'data/{stockData.ticker}/model.keras')
+            model = tf.keras.models.load_model(f'data/{stockData.ticker}/{str(version)}/model.keras')
 
             # Train model on new data
             # ****************************************************************
             # Make sure dataTrain and labelTrain only contain new data and not all the data so it doesn't model.fit on all the data again
             #*****************************************************************
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
-
-            # Keep track of model for result saving
-            stockPredictor.model = model
         
         elif TESTING_NEW_MODEL:
-            model = stockPredictor.getManualModel()
+            model = model.getManualModel()
 
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, validation_data=(testingDataset))
 
@@ -158,8 +146,6 @@ def main():
             plt.legend()
             plt.savefig(f'{dirPath}/loss.png')
             # plt.show()
-
-            stockPredictor.model = model
         
 
         # Reduce data dimensions from 4D to 3D since indexing dataset made list versions 4D
@@ -178,11 +164,6 @@ def main():
         # Make predictions
         predictions = model.predict(testingData)
 
-        testingLabels = np.array(testingLabels)
-        predictions = np.array(predictions)
-        print(np.mean((testingLabels - predictions) ** 2))
-        input()
-
         # Get best val loss from training history
         valLoss = history.history['loss']
         bestValLoss = min(valLoss)
@@ -191,7 +172,7 @@ def main():
         metadata = [bestValLoss]
 
         # Save results from training session
-        saver.saveResults(metadata, stockPredictor, predictions, testingLabels, dirPath)
+        saver.saveResults(metadata, labelScaler, predictions, testingLabels, dirPath, model)
 
 
 if __name__ == '__main__':

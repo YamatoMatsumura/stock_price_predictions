@@ -5,10 +5,10 @@ from sklearn.metrics import mean_squared_error
 from datetime import date
 import tensorflow as tf
 
+from config import SEQUENCE_LENGTH, N_DAYS
 
-def createNewDir(neuralNetwork):
-    ticker = neuralNetwork.ticker
 
+def createNewDir(ticker):
     # Count number of graphs already existing to not overwrite previous ones
     for root, dirs, files in os.walk(f'data/{ticker}'):
         dirCount = len(dirs)
@@ -24,32 +24,32 @@ def createNewDir(neuralNetwork):
 
     return f'data/{ticker}/{dirCount}'
 
-def saveResults(metadata, neuralNetwork, predictions, labelTest, dirPath):
+def saveResults(metadata, labelScaler, predictions, testingLabels, dirPath, model):
 
     # Graph results
-    graphResults(dirPath, neuralNetwork, predictions, labelTest)
+    graphResults(dirPath, labelScaler, predictions, testingLabels)
 
     # Save metadata about session
-    saveMetadata(metadata, dirPath, neuralNetwork)
+    saveMetadata(metadata, dirPath, model)
 
     # Save keras model
-    neuralNetwork.model.save(dirPath + '/model.keras')
+    model.save(dirPath + '/model.keras')
 
-def graphResults(dirPath, neuralNetwork, predictions, labelTest):
+def graphResults(dirPath, labelScaler, predictions, testingLabels):
 
     # Undo scaling on predictions and labels
-    predictions = neuralNetwork.scalarLabels.inverse_transform(predictions)
-    labelTest = neuralNetwork.scalarLabels.inverse_transform(labelTest)
+    predictions = labelScaler.inverse_transform(predictions)
+    testingLabels = labelScaler.inverse_transform(testingLabels)
 
-    for i in range(len(labelTest)):
-        rmse = np.sqrt(mean_squared_error(labelTest[i], predictions[i]))
+    for i in range(len(testingLabels)):
+        rmse = np.sqrt(mean_squared_error(testingLabels[i], predictions[i]))
         print(rmse)
 
         # Plotting
         plt.figure(figsize=(10, 6))
 
         # Plot actual labels
-        plt.plot(labelTest[i], linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
+        plt.plot(testingLabels[i], linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
 
         # Plot predictions
         plt.plot(predictions[i], linestyle='--', linewidth = 0.7, color='r', label='Predicted', marker='o', markersize=1)
@@ -66,16 +66,15 @@ def graphResults(dirPath, neuralNetwork, predictions, labelTest):
         plt.savefig(f'{dirPath}/graph.png')
 
 
-def saveMetadata(metadata, dirpath, neuralNetwork):
-    model = neuralNetwork.model
+def saveMetadata(metadata, dirpath, model):
     bestValLoss = metadata[0]
 
     # Initialize metadata
     metadata = {
         'Date: ': str(date.today().strftime('%m/%d/%Y')),
         'Best Val Loss: ': str(bestValLoss),
-        'Sequence Length: ': neuralNetwork.sequenceLength,
-        'Predicting N Days: ': neuralNetwork.nDays
+        'Sequence Length: ': SEQUENCE_LENGTH,
+        'Predicting N Days': N_DAYS
     }
 
     # Write metadata to seperate file
