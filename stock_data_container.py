@@ -58,6 +58,10 @@ class StockDataContainer:
             return df['Date'].iloc[0]
         except (pd.errors.EmptyDataError, FileNotFoundError):
             return None
+        
+    def getExistingData(self):
+        self.data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
+
     
     def updateAllData(self):
         print("Updating all data...")
