@@ -74,7 +74,7 @@ def saveMetadata(metadata, dirpath, model):
         'Date: ': str(date.today().strftime('%m/%d/%Y')),
         'Best Val Loss: ': str(bestValLoss),
         'Sequence Length: ': SEQUENCE_LENGTH,
-        'Predicting N Days': N_DAYS
+        'Predicting N Days: ': N_DAYS
     }
 
     # Write metadata to seperate file
