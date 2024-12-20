@@ -24,18 +24,11 @@ def createNewDir(ticker):
 
     return f'data/{ticker}/{dirCount}'
 
-def saveResults(metadata, labelScaler, predictions, testingLabels, dirPath, model):
-
-    # Graph results
-    graphResults(dirPath, labelScaler, predictions, testingLabels)
-
-    # Save metadata about session
-    saveMetadata(metadata, dirPath, model)
-
+def saveModel(model, dirPath):
     # Save keras model
     model.save(dirPath + '/model.keras')
 
-def graphResults(dirPath, labelScaler, predictions, testingLabels):
+def createResultsGraph(labelScaler, predictions, testingLabels):
 
     # Undo scaling on predictions and labels
     predictions = labelScaler.inverse_transform(predictions)
@@ -45,8 +38,8 @@ def graphResults(dirPath, labelScaler, predictions, testingLabels):
         rmse = np.sqrt(mean_squared_error(testingLabels[i], predictions[i]))
         print(rmse)
 
-        # Plotting
-        plt.figure(figsize=(10, 6))
+        # Initialize Graph
+        resultsGraph = plt.figure(figsize=(10, 6))
 
         # Plot actual labels
         plt.plot(testingLabels[i], linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
@@ -62,11 +55,29 @@ def graphResults(dirPath, labelScaler, predictions, testingLabels):
         plt.grid(True)
         plt.tight_layout()
 
-        # Save plot
-        plt.savefig(f'{dirPath}/graph.png')
+        return resultsGraph
+    
+def saveGraph(graph, dirPath, fileName):
+        graph.savefig(f'{dirPath}/{fileName}')
+
+def createLossGraph(history):
+    # Extract the loss values
+    train_loss = history.history['loss']
+    val_loss = history.history['val_loss']
+
+    # Plot the learning curves
+    lossGraph = plt.figure(figsize=(10, 6))
+    plt.plot(train_loss, label='Training Loss')
+    plt.plot(val_loss, label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.title('Learning Curves')
+    plt.legend()
+
+    return lossGraph
 
 
-def saveMetadata(metadata, dirpath, model):
+def saveTrainingNotes(metadata, dirpath, model):
     bestValLoss = metadata[0]
 
     # Initialize metadata
