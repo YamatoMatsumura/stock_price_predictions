@@ -4,7 +4,7 @@ import tensorflow as tf
 import keras_tuner as kt
 
 import neural_network as neuralNetwork
-import result_saver as saver
+import result_saving_utils as savingUtils
 import data_utils as dataUtils
 from stock_data_container import StockDataContainer
 from config import (
@@ -37,10 +37,11 @@ def main():
         trainingDataset, testingDataset = dataUtils.splitDataset(dataset)
 
         # Create new directory to house training session data
-        dirPath = saver.createNewDir(stockData.ticker)
+        dirPath = savingUtils.createNewDir(stockData.ticker)
 
         # Initialize early stopping
         earlyStopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=EARLY_STOP_PATIENCE, restore_best_weights=True)
+
         if CREATE_NEW_MODEL:
             
             # Initialize tuner
@@ -69,6 +70,7 @@ def main():
             history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
 
         elif TESTING:
+
             # Choose version to load
             version = input("Select tuning session to load: ")
 
@@ -110,23 +112,8 @@ def main():
         elif TESTING_CUSTOM_MODEL:
             model = neuralNetwork.getManualModel()
 
-            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, validation_data=(testingDataset))
+            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
 
-            # Extract the loss values
-            train_loss = history.history['loss']
-            val_loss = history.history['val_loss']
-
-            # Plot the learning curves
-            plt.figure(figsize=(10, 6))
-            plt.plot(train_loss, label='Training Loss')
-            plt.plot(val_loss, label='Validation Loss')
-            plt.xlabel('Epochs')
-            plt.ylabel('Loss')
-            plt.title('Learning Curves')
-            plt.legend()
-            plt.savefig(f'{dirPath}/loss.png')
-            # plt.show()
-        
 
         # Extract data and labels from testing data set
         testingData, testingLabels = dataUtils.extractDataAndLabels(testingDataset)
@@ -148,15 +135,18 @@ def main():
         # Make predictions
         predictions = model.predict(testingData)
 
-        # Get best val loss from training history
+        # Save graph of predicted vs actual
+        results = savingUtils.createResultsGraph(labelScaler, predictions, testingLabels)
+        savingUtils.saveGraph(results, dirPath, "results.png")
+
+        # Save notes for training session
         valLoss = history.history['loss']
         bestValLoss = min(valLoss)
-
-        # Prepare metadata
         metadata = [bestValLoss]
+        savingUtils.saveTrainingNotes(metadata, dirPath, model)
 
-        # Save results from training session
-        saver.saveResults(metadata, labelScaler, predictions, testingLabels, dirPath, model)
+        # Save model
+        savingUtils.saveModel(model, dirPath)
 
 
 if __name__ == '__main__':
