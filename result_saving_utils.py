@@ -20,9 +20,15 @@ def createNewDir(ticker):
         dirCount += 1
     
     # Create directory to house this training session's data
-    os.makedirs(f'data/{ticker}/{dirCount}')
+    customName = input("Custom Name for directory (Enter n to skip): ")
+    if customName != "n":
+        dirPath = f'data/{ticker}/{dirCount}_{customName}'
+        os.makedirs(dirPath)
+    else:
+        dirPath = f'data/{ticker}/{dirCount}'
+        os.makedirs(dirPath)
 
-    return f'data/{ticker}/{dirCount}'
+    return dirPath
 
 def saveModel(model, dirPath):
     # Save keras model
