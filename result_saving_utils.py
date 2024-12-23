@@ -1,11 +1,11 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error
 from datetime import date
 import tensorflow as tf
+import yaml
 
-from config import SEQUENCE_LENGTH, N_DAYS
+from config import SEQUENCE_LENGTH, N_DAYS, BATCH_SIZE
 
 
 def createNewDir(ticker):
@@ -20,9 +20,9 @@ def createNewDir(ticker):
         dirCount += 1
     
     # Create directory to house this training session's data
-    customName = input("Custom Name for directory (Enter n to skip): ")
-    if customName != "n":
-        dirPath = f'data/{ticker}/{dirCount}_{customName}'
+    customName = input("Custom Name for directory (Enter to skip): ")
+    if len(customName) != 0:
+        dirPath = f'data/{ticker}/{customName}'
         os.makedirs(dirPath)
     else:
         dirPath = f'data/{ticker}/{dirCount}'
@@ -41,9 +41,6 @@ def createResultsGraph(labelScaler, predictions, testingLabels):
     testingLabels = labelScaler.inverse_transform(testingLabels)
 
     for i in range(len(testingLabels)):
-        rmse = np.sqrt(mean_squared_error(testingLabels[i], predictions[i]))
-        print(rmse)
-
         # Initialize Graph
         resultsGraph = plt.figure(figsize=(10, 6))
 
@@ -83,27 +80,25 @@ def createLossGraph(history):
     return lossGraph
 
 
-def saveTrainingNotes(metadata, dirpath, model):
-    bestValLoss = metadata[0]
-
-    # Initialize metadata
-    metadata = {
-        'Date: ': str(date.today().strftime('%m/%d/%Y')),
-        'Best Val Loss: ': str(bestValLoss),
-        'Sequence Length: ': SEQUENCE_LENGTH,
-        'Predicting N Days: ': N_DAYS
-    }
-
-    # Write metadata to seperate file
+def saveTrainingNotes(dirpath, model, bestValLoss, rValue, rmse):
     with open(f'{dirpath}/notes.txt', 'w') as file:
-        for key, value in metadata.items():
-            file.write(f'{key}: {value} \n')
-        
-        file.write('\n' + '-'*40)
-        file.write('Model Summary')
-        file.write('-'*40 + '\n')
+        file.write('='*17 + ' ' + "[Model Summary]" + ' ' + '='*18 + '\n')
+        file.write(f"Date: {str(date.today().strftime('%m/%d/%Y'))} \n \n \n")
+
+        file.write('='*16 + ' ' + "[Model Parameters]" + ' ' + '='*16 + '\n')
+        file.write("- Sequence Length: " + str(SEQUENCE_LENGTH) + '\n')
+        file.write("- Predicting N Days: " + str(N_DAYS) + '\n')
+        file.write("- Batch Size: " + str(BATCH_SIZE) + '\n')
+        file.write('='*52 + '\n \n')
+
+        file.write('='*15 + ' ' + "[Model Performance]" + ' ' + '='*16 + '\n')
+        file.write("- Best Validation Loss: " + str(bestValLoss) + '\n')
+        file.write("- R Value: " + str(rValue) + '\n')
+        file.write("- RMSE: " + str(rmse) + '\n')
+        file.write('='*52 + '\n \n')
         
         # Iterate through the layers and write to file the specific attributes
+        file.write('='*15 + ' ' + "[Model Architecture]" + ' ' + '='*15 + '\n')
         for layer in model.layers:
             # Check if the layer is Bidirectional
             if isinstance(layer, tf.keras.layers.Bidirectional):
@@ -111,18 +106,15 @@ def saveTrainingNotes(metadata, dirpath, model):
                 lstm_layer = layer._layers[0]
                 
                 if isinstance(lstm_layer, tf.keras.layers.LSTM):
-                    file.write('Bidirectional LSTM Layer\n')
-                    file.write(f'Units: {lstm_layer.units}\n')
-                    file.write(f'Recurrent Dropout: {lstm_layer.recurrent_dropout}\n')
-                    file.write('-' * 40 + '\n')
+                    file.write("- Bidirectional LSTM Layer\n")
+                    file.write(' '*4 + f"* Units: {lstm_layer.units}\n")
+                    file.write(' '*4 + f"* Recurrent Dropout: {lstm_layer.recurrent_dropout}\n")
             # Check if the layer is an LSTM layer
             elif isinstance(layer, tf.keras.layers.LSTM):
-                file.write('LSTM Layer\n')
-                file.write(f'Units: {layer.units}\n')
-                file.write(f'Recurrent Dropout: {layer.recurrent_dropout}\n')
-                file.write('-' * 40 + '\n')
+                file.write("- LSTM Layer\n")
+                file.write(' '*4 + f"* Units: {layer.units}\n")
+                file.write(' '*4 + f"* Recurrent Dropout: {layer.recurrent_dropout}\n")
             # Check if the layer is a Dense layer
             elif isinstance(layer, tf.keras.layers.Dense):
-                file.write(f'Output Layer\n')
-                file.write(f'Units: {layer.units}\n')
-                file.write('-' * 40 + '\n')
+                file.write("- Output Layer\n")
+                file.write(' '*4 + f"* Units: {layer.units}\n")

@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
+from sklearn.metrics import mean_squared_error
+
 
 import neural_network as neuralNetwork
 import result_saving_utils as savingUtils
@@ -107,7 +109,7 @@ def main():
             # ****************************************************************
             # Make sure dataTrain and labelTrain only contain new data and not all the data so it doesn't model.fit on all the data again
             #*****************************************************************
-            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
+            # history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
         
         elif TESTING_CUSTOM_MODEL:
             model = neuralNetwork.getManualModel()
@@ -142,8 +144,9 @@ def main():
         # Save notes for training session
         valLoss = history.history['loss']
         bestValLoss = min(valLoss)
-        metadata = [bestValLoss]
-        savingUtils.saveTrainingNotes(metadata, dirPath, model)
+        rValue = np.corrcoef(testingLabels, predictions)[0, 1]
+        rmse = np.sqrt(mean_squared_error(testingLabels[0], predictions[0]))
+        savingUtils.saveTrainingNotes(dirPath, model, bestValLoss, rValue, rmse)
 
         # Save model
         savingUtils.saveModel(model, dirPath)
