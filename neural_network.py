@@ -56,7 +56,7 @@ def getModel(hp, sequenceLength, numFeatures):
 
     return model
 
-def getManualModel(self):
+def getManualModel():
     model = tf.keras.Sequential()
 
     model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=16, return_sequences=True, recurrent_dropout=0.2)))
