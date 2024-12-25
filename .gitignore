@@ -2,7 +2,6 @@
 vpn_script.py
 
 # Data files
-/data
 *.json
 trade_log.txt
 
