@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 from config import SEQUENCE_LENGTH, BATCH_SIZE, N_DAYS
 
 
-def createDataset(data):
+def create_dataset(data):
 
     # Reverse data so trains from oldest to newest
     data = data.iloc[::-1]
@@ -33,44 +33,44 @@ def createDataset(data):
         # Next element is Data for days 2-11 predict labels for day 12-21
     # Remove first sequenceLength labels since predicting future closing price (i.e. day 1 of data has day N_DAYS+1 closing price)
     labels = labels[SEQUENCE_LENGTH:]
-    windowedLabels = []
+    windowed_labels = []
     for i in range(len(labels) - N_DAYS + 1):
-        windowedLabels.append(labels[i:i+N_DAYS])
+        windowed_labels.append(labels[i:i+N_DAYS])
     
-    windowedLabels = np.array(windowedLabels)
+    windowed_labels = np.array(windowed_labels)
 
     dataset = tf.keras.utils.timeseries_dataset_from_array(
         data,
-        windowedLabels,
+        windowed_labels,
         SEQUENCE_LENGTH,
         batch_size = BATCH_SIZE,
     )
 
     return dataset
 
-def splitDataset(dataset):
+def split_dataset(dataset):
     # Convert to list to help split into training and testing
     dataset = list(dataset)
 
     # Grab last element for testing
-    testingDataset = dataset[-1:]
+    testing_dataset = dataset[-1:]
 
     # Convert into np array since dataset is tuples of data, labels
-    testingData = np.array([x[0].numpy() for x in testingDataset])
-    testingLabels = np.array([x[1].numpy() for x in testingDataset])
+    testing_data = np.array([x[0].numpy() for x in testing_dataset])
+    testing_labels = np.array([x[1].numpy() for x in testing_dataset])
 
     # Extract remaining data to use as training and split into data and labels
-    trainingDataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
-    trainingData = np.array([x[0].numpy() for x in trainingDataset])
-    trainingLabels = np.array([x[1].numpy() for x in trainingDataset])
+    training_dataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
+    training_data = np.array([x[0].numpy() for x in training_dataset])
+    training_labels = np.array([x[1].numpy() for x in training_dataset])
 
     # Convert to tf.data.Dataset to feed into neural network
-    trainingDataset = tf.data.Dataset.from_tensor_slices((trainingData, trainingLabels))
-    testingDataset = tf.data.Dataset.from_tensor_slices((testingData, testingLabels))
+    training_dataset = tf.data.Dataset.from_tensor_slices((training_data, training_labels))
+    testing_dataset = tf.data.Dataset.from_tensor_slices((testing_data, testing_labels))
 
-    return trainingDataset, testingDataset
+    return training_dataset, testing_dataset
 
-def extractDataAndLabels(dataset):
+def extract_data_and_labels(dataset):
     data = []
     labels = []
 
@@ -84,32 +84,32 @@ def extractDataAndLabels(dataset):
     return data, labels
 
 
-def scaleTrainingDataset(dataset):
-    data, labels = extractDataAndLabels(dataset)
+def scale_training_dataset(dataset):
+    data, labels = extract_data_and_labels(dataset)
     data = data.reshape(-1, data.shape[3])
     labels = labels.reshape(-1)
 
 
-    dataScalers = []
+    data_scalers = []
     for i in range(data.shape[1]):
         scaler = MinMaxScaler()
         data[i] = scaler.fit_transform(data[i])
-        dataScalers.append(scaler)
+        data_scalers.append(scaler)
 
-    labelScalers = []
+    label_scalers = []
     for i in range(labels.shape[1]):
         scaler = MinMaxScaler()
         labels[i] = scaler.fit_transform(labels[i])
-        labelScalers.append(scaler)
+        label_scalers.append(scaler)
 
-    return dataScalers, labelScalers
+    return data_scalers, label_scalers
 
-def logData(newData, ticker):
+def log_data(new_data, ticker):
     # Check if existing data in trained_data
     try:
         # Load and add onto data
-        existingData = pd.read_csv('data/' + ticker + '/trained_data.csv')
-        data = pd.concat([existingData, newData], ignore_index=True)
+        existing_data = pd.read_csv('data/' + ticker + '/trained_data.csv')
+        data = pd.concat([existing_data, new_data], ignore_index=True)
 
         # Merge duplicate date days and fill in data by cross referencing rows
         data = data.groupby('Date').apply(lambda x: x.ffill().bfill().iloc[0]).reset_index(drop=True)

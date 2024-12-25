@@ -8,44 +8,44 @@ import yaml
 from config import SEQUENCE_LENGTH, N_DAYS, BATCH_SIZE
 
 
-def createNewDir(ticker):
+def create_new_dir(ticker):
     # Count number of graphs already existing to not overwrite previous ones
     for root, dirs, files in os.walk(f'data/{ticker}'):
-        dirCount = len(dirs)
+        dir_count = len(dirs)
         # Break after counting dirs in root directory
         break
 
     # Adjust if directory already exists
-    if os.path.exists(f'data/{ticker}/{dirCount}'):
-        dirCount += 1
+    if os.path.exists(f'data/{ticker}/{dir_count}'):
+        dir_count += 1
     
     # Create directory to house this training session's data
-    customName = input("Custom Name for directory (Enter to skip): ")
-    if len(customName) != 0:
-        dirPath = f'data/{ticker}/{customName}'
-        os.makedirs(dirPath)
+    custom_name = input("Custom Name for directory (Enter to skip): ")
+    if len(custom_name) != 0:
+        dir_path = f'data/{ticker}/{custom_name}'
+        os.makedirs(dir_path)
     else:
-        dirPath = f'data/{ticker}/{dirCount}'
-        os.makedirs(dirPath)
+        dir_path = f'data/{ticker}/{dir_count}'
+        os.makedirs(dir_path)
 
-    return dirPath
+    return dir_path
 
-def saveModel(model, dirPath):
+def save_model(model, dir_path):
     # Save keras model
-    model.save(dirPath + '/model.keras')
+    model.save(dir_path + '/model.keras')
 
-def createResultsGraph(labelScaler, predictions, testingLabels):
+def create_results_graph(label_scaler, predictions, testing_labels):
 
     # Undo scaling on predictions and labels
-    predictions = labelScaler.inverse_transform(predictions)
-    testingLabels = labelScaler.inverse_transform(testingLabels)
+    predictions = label_scaler.inverse_transform(predictions)
+    testing_labels = label_scaler.inverse_transform(testing_labels)
 
-    for i in range(len(testingLabels)):
+    for i in range(len(testing_labels)):
         # Initialize Graph
-        resultsGraph = plt.figure(figsize=(10, 6))
+        results_graph = plt.figure(figsize=(10, 6))
 
         # Plot actual labels
-        plt.plot(testingLabels[i], linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
+        plt.plot(testing_labels[i], linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
 
         # Plot predictions
         plt.plot(predictions[i], linestyle='--', linewidth = 0.7, color='r', label='Predicted', marker='o', markersize=1)
@@ -58,18 +58,18 @@ def createResultsGraph(labelScaler, predictions, testingLabels):
         plt.grid(True)
         plt.tight_layout()
 
-        return resultsGraph
+        return results_graph
     
-def saveGraph(graph, dirPath, fileName):
-        graph.savefig(f'{dirPath}/{fileName}')
+def save_graph(graph, dir_path, file_name):
+        graph.savefig(f'{dir_path}/{file_name}')
 
-def createLossGraph(history):
+def create_loss_graph(history):
     # Extract the loss values
     train_loss = history.history['loss']
     val_loss = history.history['val_loss']
 
     # Plot the learning curves
-    lossGraph = plt.figure(figsize=(10, 6))
+    loss_graph = plt.figure(figsize=(10, 6))
     plt.plot(train_loss, label='Training Loss')
     plt.plot(val_loss, label='Validation Loss')
     plt.xlabel('Epochs')
@@ -77,11 +77,11 @@ def createLossGraph(history):
     plt.title('Learning Curves')
     plt.legend()
 
-    return lossGraph
+    return loss_graph
 
 
-def saveTrainingNotes(dirpath, model, bestValLoss, rValue, rmse):
-    with open(f'{dirpath}/notes.txt', 'w') as file:
+def save_training_notes(dir_path, model, best_val_loss, r_value, rmse):
+    with open(f'{dir_path}/notes.txt', 'w') as file:
         file.write('='*17 + ' ' + "[Model Summary]" + ' ' + '='*18 + '\n')
         file.write(f"Date: {str(date.today().strftime('%m/%d/%Y'))} \n \n \n")
 
@@ -92,8 +92,8 @@ def saveTrainingNotes(dirpath, model, bestValLoss, rValue, rmse):
         file.write('='*52 + '\n \n')
 
         file.write('='*15 + ' ' + "[Model Performance]" + ' ' + '='*16 + '\n')
-        file.write("- Best Validation Loss: " + str(bestValLoss) + '\n')
-        file.write("- R Value: " + str(rValue) + '\n')
+        file.write("- Best Validation Loss: " + str(best_val_loss) + '\n')
+        file.write("- R Value: " + str(r_value) + '\n')
         file.write("- RMSE: " + str(rmse) + '\n')
         file.write('='*52 + '\n \n')
         

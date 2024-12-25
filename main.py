@@ -20,45 +20,42 @@ from config import (
 def main():
     for stock in STOCK_NAMES:
         # Initialize stock data container
-        stockData = StockDataContainer(stock)
+        stock_data = StockDataContainer(stock)
         if UPDATE_DATA:
-            stockData.updateAllData()        
-            dataUtils.logData(stockData.data, stockData.ticker)
+            stock_data.update_all_data()        
+            dataUtils.log_data(stock_data.data, stock_data.ticker)
         else:
-            stockData.getExistingData()
+            stock_data.get_existing_data()
 
 
         # Create Dataset
-        if stockData.data.empty:
+        if stock_data.data.empty:
             print("DatasetError: no data to create dataset with")
             return
         else:
-            dataset = dataUtils.createDataset(stockData.data)
+            dataset = dataUtils.create_dataset(stock_data.data)
 
         # Split Dataset into training and testing sets
-        trainingDataset, testingDataset = dataUtils.splitDataset(dataset)
+        training_dataset, testing_dataset = dataUtils.split_dataset(dataset)
 
-        dataScalers, labelScalers = dataUtils.scaleTrainingDataset(trainingDataset)
-        print(dataScalers)
-        print("-" * 50)
-        print(labelScalers)
-        return
+        data_scalers, label_scalers = dataUtils.scale_training_dataset(training_dataset)
+
 
         # Create new directory to house training session data
-        dirPath = savingUtils.createNewDir(stockData.ticker)
+        dir_path = savingUtils.create_new_dir(stock_data.ticker)
 
         # Initialize early stopping
-        earlyStopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=EARLY_STOP_PATIENCE, restore_best_weights=True)
+        early_stopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=EARLY_STOP_PATIENCE, restore_best_weights=True)
 
         if CREATE_NEW_MODEL:
             
             # Initialize tuner
             tuner = kt.Hyperband(
-                neuralNetwork.getModel(SEQUENCE_LENGTH, stockData.data.shape[1]),
+                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
-                directory=dirPath,
+                directory=dir_path,
                 project_name=f"Hyperparam Tuning",
 
                 # ********************************
@@ -68,14 +65,14 @@ def main():
             )
 
             # Preform hyperparam tuning
-            tuner.search(trainingDataset, epochs=EPOCHS, callbacks=[earlyStopping])
+            tuner.search(training_dataset, epochs=EPOCHS, callbacks=[early_stopping])
 
             # Create model based on best hps
-            bestHps = tuner.get_best_hyperparameters(num_trials=1)[0]
-            model = tuner.hypermodel.build(bestHps) 
+            best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+            model = tuner.hypermodel.build(best_hps) 
 
             # Fit model on training data
-            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
+            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         elif TESTING:
 
@@ -84,11 +81,11 @@ def main():
 
             # Initialize tuner from correct version
             tuner = kt.Hyperband(
-                neuralNetwork.getModel(SEQUENCE_LENGTH, stockData.data.shape[1]),
+                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
-                directory=f'data/{stockData.ticker}/{str(version)}',
+                directory=f'data/{stock_data.ticker}/{str(version)}',
                 project_name=f"Hyperparam Tuning",
             )
 
@@ -96,11 +93,11 @@ def main():
             tuner.reload()
 
             # Create model based on best hps
-            bestHps = tuner.get_best_hyperparameters(num_trials=1)[0]
-            model = tuner.hypermodel.build(bestHps)
+            best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+            model = tuner.hypermodel.build(best_hps)
 
             # Fit model on training data
-            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
+            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         elif LOADING_MODEL:
             
@@ -108,8 +105,8 @@ def main():
             version = input("Select version to load (0 for old): ")
 
             if version == 0:
-                model = tf.keras.models.load_model(f'data/{stockData.ticker}/model.keras')
-            model = tf.keras.models.load_model(f'data/{stockData.ticker}/{str(version)}/model.keras')
+                model = tf.keras.models.load_model(f'data/{stock_data.ticker}/model.keras')
+            model = tf.keras.models.load_model(f'data/{stock_data.ticker}/{str(version)}/model.keras')
 
             # Train model on new data
             # ****************************************************************
@@ -118,44 +115,44 @@ def main():
             # history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
         
         elif TESTING_CUSTOM_MODEL:
-            model = neuralNetwork.getManualModel()
+            model = neuralNetwork.get_manual_model()
 
-            history = model.fit(trainingDataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[earlyStopping])
+            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
 
         # Extract data and labels from testing data set
-        testingData, testingLabels = dataUtils.extractDataAndLabels(testingDataset)
+        testing_data, testing_labels = dataUtils.extract_data_and_labels(testing_dataset)
 
         # Reduce data dimensions from 4D to 3D since indexing dataset made list versions 4D
-        testingData = testingData.reshape(-1, testingData.shape[2], testingData.shape[3])
+        testing_data = testing_data.reshape(-1, testing_data.shape[2], testing_data.shape[3])
         # Grab first element in case testing size > 1 since only graphing first set
-        testingData = testingData[0]
+        testing_data = testing_data[0]
         # Expand back to 3D since indexing first element made it 2D
-        testingData = np.expand_dims(testingData, axis=0)
+        testing_data = np.expand_dims(testing_data, axis=0)
 
         # Reduce label dimensions from 3D to 2D since indexing it made it 3D
-        testingLabels = testingLabels.reshape(-1, testingLabels.shape[2])
+        testing_labels = testing_labels.reshape(-1, testing_labels.shape[2])
         # Grab first element in case testing size > 1 since only graphing first set
-        testingLabels = testingLabels[0]
+        testing_labels = testing_labels[0]
         # Expand back into 2D since indexing first element made it 1D
-        testingLabels = np.expand_dims(testingLabels, axis=0)
+        testing_labels = np.expand_dims(testing_labels, axis=0)
 
         # Make predictions
-        predictions = model.predict(testingData)
+        predictions = model.predict(testing_data)
 
         # Save graph of predicted vs actual
-        results = savingUtils.createResultsGraph(labelScaler, predictions, testingLabels)
-        savingUtils.saveGraph(results, dirPath, "results.png")
+        results = savingUtils.create_results_graph(label_scalers, predictions, testing_labels)
+        savingUtils.save_graph(results, dir_path, "results.png")
 
         # Save notes for training session
-        valLoss = history.history['loss']
-        bestValLoss = min(valLoss)
-        rValue = np.corrcoef(testingLabels, predictions)[0, 1]
-        rmse = np.sqrt(mean_squared_error(testingLabels[0], predictions[0]))
-        savingUtils.saveTrainingNotes(dirPath, model, bestValLoss, rValue, rmse)
+        val_loss = history.history['loss']
+        best_val_loss = min(val_loss)
+        r_value = np.corrcoef(testing_labels, predictions)[0, 1]
+        rmse = np.sqrt(mean_squared_error(testing_labels[0], predictions[0]))
+        savingUtils.save_training_notes(dir_path, model, best_val_loss, r_value, rmse)
 
         # Save model
-        savingUtils.saveModel(model, dirPath)
+        savingUtils.save_model(model, dir_path)
 
 
 if __name__ == '__main__':
