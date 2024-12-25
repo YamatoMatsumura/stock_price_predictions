@@ -96,7 +96,6 @@ def scaleTrainingDataset(dataset):
         data[i] = scaler.fit_transform(data[i])
         dataScalers.append(scaler)
 
-
     labelScalers = []
     for i in range(labels.shape[1]):
         scaler = MinMaxScaler()
