@@ -1,0 +1,26 @@
+Date: : 07/27/2024 
+Testing Size: : 1 
+Best Val Loss: : 0.004223824944347143 
+Sequence Length: : 15 
+Predicting N Days: : 15 
+
+----------------------------------------Model Summary----------------------------------------
+Bidirectional LSTM Layer
+Units: 8
+Recurrent Dropout: 0.0
+----------------------------------------
+Bidirectional LSTM Layer
+Units: 4
+Recurrent Dropout: 0.0
+----------------------------------------
+LSTM Layer
+Units: 8
+Recurrent Dropout: 0.0
+----------------------------------------
+LSTM Layer
+Units: 8
+Recurrent Dropout: 0.2
+----------------------------------------
+Output Layer
+Units: 15
+----------------------------------------
