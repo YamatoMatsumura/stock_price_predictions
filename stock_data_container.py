@@ -70,7 +70,6 @@ class StockDataContainer:
         self.updateOHLCData()
         self.updateMeanData()
         self.updateReturnData()
-        self.updateVarianceData()
         self.updateSTDDevData()
         self.updateMedianData()
         self.updateSMAData()
@@ -83,7 +82,7 @@ class StockDataContainer:
         self.updateBBANDSData()
         self.updateADData()
         self.updateOBVData()
-        self.updateDateData()
+        # self.updateDateData()
 
         # Turn off vpn once done fetching data
         vpn_script.closeVpn(RUN_SCRIPT)
@@ -193,6 +192,9 @@ class StockDataContainer:
         # Delete rows with missing data
         df = df[df['Number of Articles'] != 0]
 
+        # Remove Number of Articles col since only using to filter out missing data
+        df.drop(columns=['Number of Articles'], inplace=True)
+
         # Check if no data is currently stored
         if self.data is None or self.data.empty:
             self.data = df
@@ -200,16 +202,9 @@ class StockDataContainer:
             # Fill in Sentiment data
             self.data = pd.concat([self.data, df], axis=0, join='outer')
 
-    def updateDateData(self):
-        # Split date into individual components to feed into network
-        self.data['Date'] = pd.to_datetime(self.data['Date'])
-        self.data['Year'] = self.data['Date'].dt.year
-        self.data['Month'] = self.data['Date'].dt.month
-        self.data['Day'] = self.data['Date'].dt.day
-        self.data['Day of Week'] = self.data['Date'].dt.dayofweek
-
-        # Make sure Date is formatted correctly
-        self.data['Date'] = self.data['Date'].dt.strftime('%Y-%m-%d')
+    # def updateDateData(self):
+    #     # Split date into individual components to feed into network
+    #     self.data['Date'] = pd.to_datetime(self.data['Date'])
     
 
     def _updateTechnicalIndicatorData(self, category, customCategory=False):
@@ -324,9 +319,6 @@ class StockDataContainer:
 
     def updateReturnData(self):
         self._updateAnalyticsData('CUMULATIVE_RETURN', 'Cumulative Return')
-    
-    def updateVarianceData(self):
-        self._updateAnalyticsData('VARIANCE', 'Variance')
     
     def updateSTDDevData(self):
         self._updateAnalyticsData('STDDEV', 'STDDEV')

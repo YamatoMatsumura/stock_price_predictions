@@ -3,6 +3,7 @@ import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
 from sklearn.metrics import mean_squared_error
+import pandas as pd
 
 
 import neural_network as neuralNetwork
@@ -26,17 +27,22 @@ def main():
         else:
             stockData.getExistingData()
 
+
         # Create Dataset
         if stockData.data.empty:
             print("DatasetError: no data to create dataset with")
             return
         else:
-            dataScaler = dataUtils.getScaler()
-            labelScaler = dataUtils.getScaler()
-            dataset = dataUtils.createDataset(stockData.data, dataScaler, labelScaler)
+            dataset = dataUtils.createDataset(stockData.data)
 
         # Split Dataset into training and testing sets
         trainingDataset, testingDataset = dataUtils.splitDataset(dataset)
+
+        dataScalers, labelScalers = dataUtils.scaleTrainingDataset(trainingDataset)
+        print(dataScalers)
+        print("-" * 50)
+        print(labelScalers)
+        return
 
         # Create new directory to house training session data
         dirPath = savingUtils.createNewDir(stockData.ticker)
