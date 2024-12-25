@@ -6,7 +6,7 @@ from sklearn.preprocessing import MinMaxScaler
 from config import SEQUENCE_LENGTH, BATCH_SIZE, N_DAYS
 
 
-def convert_dataset_to_percent_changes(stock_data):
+def convert_dataset_to_percentage_changes(stock_data):
     df = stock_data.data
 
     for col in df.columns:
