@@ -6,6 +6,18 @@ from sklearn.preprocessing import MinMaxScaler
 from config import SEQUENCE_LENGTH, BATCH_SIZE, N_DAYS
 
 
+def convert_dataset_to_percent_changes(stock_data):
+    df = stock_data.data
+
+    for col in df.columns:
+        if col != 'Date':
+            df[col] = df[col].pct_change()
+
+    # Drop first row since no percent change
+    df = df.iloc[1:]
+
+    return df
+
 def create_dataset(data):
 
     # Reverse data so trains from oldest to newest
@@ -124,7 +136,8 @@ def log_data(new_data, ticker):
         data = data.sort_values(by='Date', ascending=False).reset_index(drop=True)
 
         # save to csv
-        data.to_csv('data/' + ticker + '/trained_data.csv', index=False)   
+        data.to_csv('data/' + ticker + '/trained_data.csv', index=False) 
+
     # If no pre-existing data  
     except:
         # Merge duplicate date days and fill in data by cross referencing rows
