@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from config import N_DAYS
+from config import PREDICTION_WINDOW
     
 def get_model(hp, sequence_length, num_features):
     model = tf.keras.Sequential()
@@ -46,7 +46,7 @@ def get_model(hp, sequence_length, num_features):
     ))
 
     # Output Layer
-    model.add(tf.keras.layers.Dense(N_DAYS))
+    model.add(tf.keras.layers.Dense(PREDICTION_WINDOW))
 
     model.compile(
         optimizer="adam",
@@ -61,7 +61,7 @@ def get_manual_model():
 
     model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=16, return_sequences=True, recurrent_dropout=0.2)))
     model.add(tf.keras.layers.LSTM(units=8, recurrent_dropout=0.2))
-    model.add(tf.keras.layers.Dense(N_DAYS))
+    model.add(tf.keras.layers.Dense(PREDICTION_WINDOW))
 
     model.compile(
         optimizer="adam",
