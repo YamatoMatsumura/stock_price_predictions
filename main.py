@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
-from sklearn.metrics import mean_squared_error
 import pandas as pd
 
 
@@ -19,7 +18,6 @@ from config import (
 
 def main():
     for stock in STOCK_NAMES:
-        # Initialize stock data container
         stock_data = StockDataContainer(stock)
         if UPDATE_DATA:
             stock_data.update_all_data()        
@@ -27,19 +25,30 @@ def main():
         else:
             stock_data.get_existing_data()
 
-
-        # Create Dataset
         if stock_data.data.empty:
             print("DatasetError: no data to create dataset with")
             return
-        else:
-            dataset = dataUtils.create_dataset(stock_data.data)
 
-        # Split Dataset into training and testing sets
-        training_dataset, testing_dataset = dataUtils.split_dataset(dataset)
 
-        data_scalers, label_scalers = dataUtils.scale_training_dataset(training_dataset)
+        # Convert dataset to percent changes since predicting stock movement/changes
+        stock_data.percentage_change_data = dataUtils.convert_dataset_to_percentage_changes(stock_data)
 
+        # Reverse data so model trains from oldest to newest
+        modified_percentage_data = stock_data.percentage_change_data.iloc[::-1].reset_index(drop=True)
+        # Drop Date column since only used for debugging/data alignment purposes
+        modified_percentage_data = modified_percentage_data.drop(columns=['Date'])
+
+
+        features, labels = dataUtils.create_windowed_dataset(modified_percentage_data)
+        training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
+        (   
+            scaled_training_features, 
+            scaled_training_labels, 
+            scaled_testing_features, 
+            scaled_testing_labels, 
+            feature_scaler, 
+            label_scaler 
+        ) = dataUtils.scale_dataset(training_features, training_labels, testing_features, testing_labels)
 
         # Create new directory to house training session data
         dir_path = savingUtils.create_new_dir(stock_data.ticker)
@@ -65,14 +74,14 @@ def main():
             )
 
             # Preform hyperparam tuning
-            tuner.search(training_dataset, epochs=EPOCHS, callbacks=[early_stopping])
+            tuner.search(scaled_training_features, scaled_training_labels, epochs=EPOCHS, callbacks=[early_stopping])
 
             # Create model based on best hps
             best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
             model = tuner.hypermodel.build(best_hps) 
 
             # Fit model on training data
-            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         elif TESTING:
 
@@ -97,7 +106,7 @@ def main():
             model = tuner.hypermodel.build(best_hps)
 
             # Fit model on training data
-            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         elif LOADING_MODEL:
             
@@ -117,39 +126,19 @@ def main():
         elif TESTING_CUSTOM_MODEL:
             model = neuralNetwork.get_manual_model()
 
-            history = model.fit(training_dataset, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
-
-
-        # Extract data and labels from testing data set
-        testing_data, testing_labels = dataUtils.extract_data_and_labels(testing_dataset)
-
-        # Reduce data dimensions from 4D to 3D since indexing dataset made list versions 4D
-        testing_data = testing_data.reshape(-1, testing_data.shape[2], testing_data.shape[3])
-        # Grab first element in case testing size > 1 since only graphing first set
-        testing_data = testing_data[0]
-        # Expand back to 3D since indexing first element made it 2D
-        testing_data = np.expand_dims(testing_data, axis=0)
-
-        # Reduce label dimensions from 3D to 2D since indexing it made it 3D
-        testing_labels = testing_labels.reshape(-1, testing_labels.shape[2])
-        # Grab first element in case testing size > 1 since only graphing first set
-        testing_labels = testing_labels[0]
-        # Expand back into 2D since indexing first element made it 1D
-        testing_labels = np.expand_dims(testing_labels, axis=0)
+            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         # Make predictions
-        predictions = model.predict(testing_data)
+        scaled_predictions = model.predict(scaled_testing_features)
+        predictions = label_scaler.inverse_transform(scaled_predictions)
+        predicted_labels = dataUtils.reverse_percentages(predictions, stock_data.data)
 
         # Save graph of predicted vs actual
-        results = savingUtils.create_results_graph(label_scalers, predictions, testing_labels)
+        results = savingUtils.create_results_graph(predicted_labels, stock_data)
         savingUtils.save_graph(results, dir_path, "results.png")
 
         # Save notes for training session
-        val_loss = history.history['loss']
-        best_val_loss = min(val_loss)
-        r_value = np.corrcoef(testing_labels, predictions)[0, 1]
-        rmse = np.sqrt(mean_squared_error(testing_labels[0], predictions[0]))
-        savingUtils.save_training_notes(dir_path, model, best_val_loss, r_value, rmse)
+        savingUtils.save_training_notes(dir_path, model, history, predicted_labels, stock_data.data)
 
         # Save model
         savingUtils.save_model(model, dir_path)
