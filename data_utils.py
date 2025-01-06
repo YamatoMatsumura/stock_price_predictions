@@ -1,120 +1,100 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 
-from config import SEQUENCE_LENGTH, BATCH_SIZE, N_DAYS
+from config import SEQUENCE_LENGTH, BATCH_SIZE, PREDICTION_WINDOW
 
 
 def convert_dataset_to_percentage_changes(stock_data):
-    df = stock_data.data
+    # Day 1 has percentage change of going from day 0 to day 1
+
+    df = stock_data.data.copy()
+
+    # Reverse data since percentage change is calculated from oldest to newest
+    df = df.iloc[::-1].reset_index(drop=True)
 
     for col in df.columns:
-        if col != 'Date':
+        if col != 'Date':  # Date is only for debugging/data alignment purposes
             df[col] = df[col].pct_change()
 
-    # Drop first row since no percent change
+    # Oldest date has no percentage change
     df = df.iloc[1:]
+
+    # Aroon up/down can have inf/empty values so replace with 0
+    df = df.replace([np.inf, -np.inf, np.NAN, ''], 0)
+
+    # Reverse for saving purposes
+    df = df.iloc[::-1].reset_index(drop=True)
+    df.to_csv('data/' + stock_data.ticker + '/percentage_change_data.csv', index=False)
 
     return df
 
-def create_dataset(data):
+def create_windowed_dataset(percentage_data):
+    df = percentage_data.copy()
+    labels = df.pop('Close').values
+    features = df.values
 
-    # Reverse data so trains from oldest to newest
-    data = data.iloc[::-1]
-
-    # Delete Date Column since can't go into model
-    data = data.drop(columns=['Date'])
-
-    # Convert labels and data to numpy array for model
-    labels = data.pop('Close').values
-    data = data.values
-
-    # # Scale data to help with fitting
-    # data = dataScaler.fit_transform(data)
-
-    # # Reshape labels into 2D array since StandardScalar needs 2D array
-    # labels = labels.reshape(-1, 1)
-    # labels = labelScaler.fit_transform(labels)
-    # # Reshape labels back into 1D array
-    # labels = labels.flatten()
-
-
-    # Create windowed dataset
-        # ex: Data for days 1-10 predict labels for day 11-20
-        # Next element is Data for days 2-11 predict labels for day 12-21
-    # Remove first sequenceLength labels since predicting future closing price (i.e. day 1 of data has day N_DAYS+1 closing price)
-    labels = labels[SEQUENCE_LENGTH:]
+    # Create windowed labels
+    labels = labels[SEQUENCE_LENGTH:]  # First SEQUENCE_LENGTH labels not used
     windowed_labels = []
-    for i in range(len(labels) - N_DAYS + 1):
-        windowed_labels.append(labels[i:i+N_DAYS])
-    
+    for i in range(len(labels) - PREDICTION_WINDOW + 1):
+        windowed_labels.append(labels[i:i+PREDICTION_WINDOW])
     windowed_labels = np.array(windowed_labels)
 
-    dataset = tf.keras.utils.timeseries_dataset_from_array(
-        data,
-        windowed_labels,
-        SEQUENCE_LENGTH,
-        batch_size = BATCH_SIZE,
-    )
-
-    return dataset
-
-def split_dataset(dataset):
-    # Convert to list to help split into training and testing
-    dataset = list(dataset)
-
-    # Grab last element for testing
-    testing_dataset = dataset[-1:]
-
-    # Convert into np array since dataset is tuples of data, labels
-    testing_data = np.array([x[0].numpy() for x in testing_dataset])
-    testing_labels = np.array([x[1].numpy() for x in testing_dataset])
-
-    # Extract remaining data to use as training and split into data and labels
-    training_dataset = dataset[:-1 * SEQUENCE_LENGTH]  # Space out sequence_length amount to make sure no part of testing dataset is in training
-    training_data = np.array([x[0].numpy() for x in training_dataset])
-    training_labels = np.array([x[1].numpy() for x in training_dataset])
-
-    # Convert to tf.data.Dataset to feed into neural network
-    training_dataset = tf.data.Dataset.from_tensor_slices((training_data, training_labels))
-    testing_dataset = tf.data.Dataset.from_tensor_slices((testing_data, testing_labels))
-
-    return training_dataset, testing_dataset
-
-def extract_data_and_labels(dataset):
-    data = []
-    labels = []
-
-    for d, l in dataset:
-        data.append(d.numpy())
-        labels.append(l.numpy())
+    # Create windowed features
+    features = features[:-PREDICTION_WINDOW]  # Last PREDICTION_WINDOW features not used
+    windowed_features = []
+    for i in range(len(features) - SEQUENCE_LENGTH + 1):
+        windowed_features.append(features[i:i+SEQUENCE_LENGTH])
+    windowed_features = np.array(windowed_features)
     
-    data = np.array(data)
-    labels = np.array(labels)
-    
-    return data, labels
+    return windowed_features, windowed_labels
 
+def split_dataset(features, labels):
+    if SEQUENCE_LENGTH > PREDICTION_WINDOW:
+        greatest_window = SEQUENCE_LENGTH
+    else:
+        greatest_window = PREDICTION_WINDOW
 
-def scale_training_dataset(dataset):
-    data, labels = extract_data_and_labels(dataset)
-    data = data.reshape(-1, data.shape[3])
-    labels = labels.reshape(-1)
+    # Grab just last element since only testing one PREDICTION_WINDOW
+    testing_features = features[-1:]
+    testing_labels = labels[-1:]
+    # Space out greatest_window amount to make sure no part of testing dataset is in training
+    training_features = features[:-1 * greatest_window] 
+    training_labels = labels[:-1 * greatest_window]
 
+    return training_features, training_labels, testing_features, testing_labels
 
-    data_scalers = []
-    for i in range(data.shape[1]):
-        scaler = MinMaxScaler()
-        data[i] = scaler.fit_transform(data[i])
-        data_scalers.append(scaler)
+def reverse_percentages(predictions, data):
+    initial_close = data['Close'].iloc[1*PREDICTION_WINDOW]
 
-    label_scalers = []
-    for i in range(labels.shape[1]):
-        scaler = MinMaxScaler()
-        labels[i] = scaler.fit_transform(labels[i])
-        label_scalers.append(scaler)
+    predicted_label_values = []
+    for prediction in predictions:
+        predicted_label_values.append(initial_close * (1 + prediction))
+        initial_close = predicted_label_values[-1]
 
-    return data_scalers, label_scalers
+    return predicted_label_values
+
+def scale_dataset(training_features, training_labels, testing_features, testing_labels):
+    # Reshape features from 3D to 2D since StandardScaler needs 2D array
+    training_features = training_features.reshape(-1, training_features.shape[2])
+    testing_features = testing_features.reshape(-1, testing_features.shape[2])
+
+    feature_scaler = StandardScaler()
+    training_features = feature_scaler.fit_transform(training_features)
+    testing_features = feature_scaler.transform(testing_features)
+
+    # Reshape back into 3D
+    training_features = training_features.reshape(-1, SEQUENCE_LENGTH, training_features.shape[1])
+    testing_features = testing_features.reshape(-1, SEQUENCE_LENGTH, testing_features.shape[1])
+
+    label_scaler = StandardScaler()
+    training_labels = label_scaler.fit_transform(training_labels)
+    testing_labels = label_scaler.transform(testing_labels)
+
+    return training_features, training_labels, testing_features, testing_labels, feature_scaler, label_scaler
+
 
 def log_data(new_data, ticker):
     # Check if existing data in trained_data
