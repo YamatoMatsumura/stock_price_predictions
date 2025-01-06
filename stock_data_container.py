@@ -22,6 +22,7 @@ class StockDataContainer:
         self.api_key_polygon = None
         self.AV_key_count = None
         self.data = None
+        self.percentage_change_data = None
         self.last_updated = self._get_last_updated()
         self.script_first_time_called = True
 
