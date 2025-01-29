@@ -3,6 +3,17 @@ import tensorflow as tf
 from config import PREDICTION_WINDOW
     
 def get_model(hp, sequence_length, num_features):
+    """Defines and returns the model used for hyperparameter tuning
+
+    Args:
+        hp (HyperparameterTuner): An object responsible for hyperparameter tuning
+        sequence_length (int): The sequence length specified
+        num_features (int): The number of features in the dataset
+
+    Returns:
+        tf.keras.Sequential: A Sequential model that can be used for hyperparameter tuning
+    """
+
     model = tf.keras.Sequential()
 
     # Layer 1
@@ -57,10 +68,23 @@ def get_model(hp, sequence_length, num_features):
     return model
 
 def get_manual_model():
+    """Defines and returns a fully contructed model without any hyperparameters.
+
+    This model is intended for testing different layer configurations and parameters
+    without the influence of hyperparameter tuning.
+
+    Returns:
+        tf.keras.Sequential(): A Sequential model that can be used for training on the data
+    """
+
     model = tf.keras.Sequential()
 
-    model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=16, return_sequences=True, recurrent_dropout=0.2)))
-    model.add(tf.keras.layers.LSTM(units=8, recurrent_dropout=0.2))
+    # model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=128, return_sequences=True, recurrent_dropout=0.2)))
+    # model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=64, return_sequences=True, recurrent_dropout=0.2)))
+    model.add(tf.keras.layers.LSTM(units=128, recurrent_dropout=0.2, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(units=64, recurrent_dropout=0.2, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(units=32, recurrent_dropout=0.2))
+
     model.add(tf.keras.layers.Dense(PREDICTION_WINDOW))
 
     model.compile(
