@@ -193,13 +193,13 @@ def combine_data(stock_data):
     """
 
     ticker = stock_data.ticker
-    new_data = stock_data.data
+    new_data = stock_data.raw_data
 
     # Check if existing data in trained_data
     try:
         # Load and add onto data
         existing_data = pd.read_csv('data/' + ticker + '/trained_data.csv')
-  
+
         # Make sure new data has same columns as existing data
         if ('Sentiment (Avg)' not in existing_data.columns) and ('Sentiment (Avg)' in new_data.columns):
             new_data = new_data.drop(columns=['Sentiment (Avg)'])
@@ -213,7 +213,7 @@ def combine_data(stock_data):
         data = data.replace('', np.nan).dropna(axis=0, how='any').reset_index(drop=True)
 
         # Make sure no duplicates
-        data.drop_duplicates(inplace=True)       
+        data.drop_duplicates(inplace=True)
 
         # Make sure dates are in right order
         data = data.sort_values(by='Date', ascending=False).reset_index(drop=True)

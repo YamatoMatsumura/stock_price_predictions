@@ -1,8 +1,8 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import tensorflow as tf
 import keras_tuner as kt
 import pandas as pd
+from sklearn.decomposition import PCA
+
 
 
 import neural_network as neuralNetwork
@@ -12,34 +12,54 @@ from stock_data_container import StockDataContainer
 from config import (
     SEQUENCE_LENGTH, STOCK_NAMES, EPOCHS, EARLY_STOP_PATIENCE, 
     BATCH_SIZE, UPDATE_DATA, CREATE_NEW_MODEL, TESTING, 
-    LOADING_MODEL, TESTING_CUSTOM_MODEL
+    LOADING_MODEL, TESTING_CUSTOM_MODEL, BACKUP_DATA, PERCENTAGE_DATA, COMBINED_DATA
 )
 
 
 def main():
+    if STOCK_NAMES[0] == 'ALL':
+        dataUtils.get_all_tickers()
+
     for stock in STOCK_NAMES:
+
+        if BACKUP_DATA:
+            dataUtils.backup_data(stock)
+
         stock_data = StockDataContainer(stock)
         if UPDATE_DATA:
-            stock_data.update_all_data()        
-            dataUtils.log_data(stock_data.data, stock_data.ticker)
+            # Backup pre-existing data incase something goes wrong fetching new data
+            dataUtils.backup_data(stock_data.ticker)
+
+            stock_data.update_all_data()
+            # Combine with pre-existing saved data if applicable    
+            combined_data = dataUtils.combine_data(stock_data)
+            dataUtils.save_data(combined_data, stock_data.ticker)    
         else:
             stock_data.get_existing_data()
 
-        if stock_data.data.empty:
+
+        if stock_data.raw_data.empty:
             print("DatasetError: no data to create dataset with")
             return
 
-
-        # Convert dataset to percent changes since predicting stock movement/changes
-        stock_data.percentage_change_data = dataUtils.convert_dataset_to_percentage_changes(stock_data)
+        if COMBINED_DATA:
+            stock_data.percentage_change_data = dataUtils.add_percentage_changes_to_dataset(stock_data)
+            stock_data.training_data = dataUtils.combine_datasets(stock_data.raw_data, stock_data.percentage_change_data)
+            stock_data.training_data.to_csv(f'data/{stock_data.ticker}/merged.csv', index=False)
+        elif PERCENTAGE_DATA:
+            # Convert dataset to percent changes since predicting stock movement/changes
+            stock_data.training_data = dataUtils.add_percentage_changes_to_dataset(stock_data)
+        else:
+            stock_data.training_data = stock_data.raw_data
 
         # Reverse data so model trains from oldest to newest
-        modified_percentage_data = stock_data.percentage_change_data.iloc[::-1].reset_index(drop=True)
+        modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)
         # Drop Date column since only used for debugging/data alignment purposes
-        modified_percentage_data = modified_percentage_data.drop(columns=['Date'])
+        modified_training_data = modified_training_data.drop(columns=['Date'])
 
 
-        features, labels = dataUtils.create_windowed_dataset(modified_percentage_data)
+        features, labels = dataUtils.create_windowed_dataset(modified_training_data)
+
         training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
         (   
             scaled_training_features, 
@@ -60,7 +80,7 @@ def main():
             
             # Initialize tuner
             tuner = kt.Hyperband(
-                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.data.shape[1]),
+                lambda hp: neuralNetwork.get_model(hp, SEQUENCE_LENGTH, stock_data.raw_data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
@@ -90,7 +110,7 @@ def main():
 
             # Initialize tuner from correct version
             tuner = kt.Hyperband(
-                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.data.shape[1]),
+                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.raw_data.shape[1]),
                 objective='loss',
                 max_epochs=50,
                 factor=3,
@@ -109,7 +129,7 @@ def main():
             history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
         elif LOADING_MODEL:
-            
+
             # Load model
             version = input("Select version to load (0 for old): ")
 
@@ -128,17 +148,21 @@ def main():
 
             history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
+
         # Make predictions
         scaled_predictions = model.predict(scaled_testing_features)
-        predictions = label_scaler.inverse_transform(scaled_predictions)
-        predicted_labels = dataUtils.reverse_percentages(predictions, stock_data.data)
+        if PERCENTAGE_DATA:
+            predictions = label_scaler.inverse_transform(scaled_predictions)
+            predicted_labels = dataUtils.reverse_percentages(predictions, stock_data.raw_data)
+        else:
+            predicted_labels = label_scaler.inverse_transform(scaled_predictions)
 
         # Save graph of predicted vs actual
         results = savingUtils.create_results_graph(predicted_labels, stock_data)
         savingUtils.save_graph(results, dir_path, "results.png")
 
         # Save notes for training session
-        savingUtils.save_training_notes(dir_path, model, history, predicted_labels, stock_data.data)
+        savingUtils.save_training_notes(dir_path, model, history, predicted_labels, stock_data.raw_data)
 
         # Save model
         savingUtils.save_model(model, dir_path)
