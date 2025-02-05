@@ -4,6 +4,7 @@ import datetime as dt
 import os
 import random
 import keyboard
+import numpy as np
 
 import vpn_script
 
@@ -20,9 +21,11 @@ class StockDataContainer:
         self.ticker = ticker
         self.api_key_AV = None
         self.api_key_polygon = None
+        self.api_key_finnhub = None
         self.AV_key_count = None
-        self.data = None
+        self.raw_data = None
         self.percentage_change_data = None
+        self.training_data = None
         self.last_updated = self._get_last_updated()
         self.script_first_time_called = True
 
@@ -44,6 +47,8 @@ class StockDataContainer:
             self.api_key_polygon = file.read()
         with open('api_Keys/AV/key0.txt') as file:
             self.api_key_AV = file.read()
+        with open('api_keys/Finnhub.txt') as file:
+            self.api_key_finnhub = file.read()
     
     def _count_AV_keys(self):
         self.AV_key_count = 0
@@ -61,7 +66,7 @@ class StockDataContainer:
             return None
         
     def get_existing_data(self):
-        self.data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
+        self.raw_data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
 
     
     def update_all_data(self):
@@ -83,7 +88,8 @@ class StockDataContainer:
         self.update_BBANDS_data()
         self.update_AD_data()
         self.update_OBV_data()
-        # self.updateDateData()
+        self.update_holiday_proximity_data()
+        self.update_date_data()
 
         # Turn off vpn once done fetching data
         vpn_script.close_VPN(RUN_SCRIPT)
@@ -116,11 +122,11 @@ class StockDataContainer:
         df = df.iloc[::-1]
 
         # Check if no data is currently stored
-        if self.data is None or self.data.empty:
-            self.data = df
+        if self.raw_data is None or self.raw_data.empty:
+            self.raw_data = df
         else:
             # Fill in OHLC data
-            self.data = pd.concat([self.data, df], axis=0, join='outer')
+            self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
 
     def update_sentiment_data(self):
         # Initialize empty dataframe
@@ -197,15 +203,11 @@ class StockDataContainer:
         df.drop(columns=['Number of Articles'], inplace=True)
 
         # Check if no data is currently stored
-        if self.data is None or self.data.empty:
-            self.data = df
+        if self.raw_data is None or self.raw_data.empty:
+            self.raw_data = df
         else:
             # Fill in Sentiment data
-            self.data = pd.concat([self.data, df], axis=0, join='outer')
-
-    # def updateDateData(self):
-    #     # Split date into individual components to feed into network
-    #     self.data['Date'] = pd.to_datetime(self.data['Date'])
+            self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
     
 
     def _update_technical_indicator_data(self, category, custom_category=False):
@@ -234,11 +236,11 @@ class StockDataContainer:
         df.rename(columns={'index': 'Date'}, inplace=True)
 
         # Check if no data is currently stored
-        if self.data is None or self.data.empty:
-            self.data = df
+        if self.raw_data is None or self.raw_data.empty:
+            self.raw_data = df
         else:
             # Fill in sentiment data
-            self.data = pd.concat([self.data, df], axis=0, join='outer')
+            self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
 
     def update_SMA_data(self):
         self._update_technical_indicator_data('SMA')
@@ -306,11 +308,11 @@ class StockDataContainer:
 
         
         # Check if no data is currently stored
-        if self.data is None or self.data.empty:
-            self.data = df
+        if self.raw_data is None or self.raw_data.empty:
+            self.raw_data = df
         else:
             # Fill in sentiment data
-            self.data = pd.concat([self.data, df], axis=0, join='outer')
+            self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
 
     def update_mean_data(self):
         self._update_analytics_data('MEAN', 'Mean')
@@ -429,3 +431,75 @@ class StockDataContainer:
         url = url[:-16]
         url += self.api_key_AV
         return url
+
+    def update_holiday_proximity_data(self):
+        url = f"https://finnhub.io/api/v1//stock/market-holiday?exchange=US&token={self.api_key_finnhub}"
+        response = requests.get(url)
+        raw_data = response.json()
+
+        # Parse JSON
+        data = raw_data['data']
+        df = pd.DataFrame(columns = ['Event Name', 'Date'])
+        new_row = []
+        # Loop through json and grab data
+        for i in range(len(data)):
+            new_row.clear()
+            new_row.append(data[i]['eventName'])
+            new_row.append(data[i]['atDate'])
+
+            # Append new_row to df
+            df.loc[len(df)] = new_row
+
+        # Make date col right dtype
+        df['Date'] = pd.to_datetime(df['Date'])
+
+        # Drop Christmas Eve rows
+        df = df[~((df["Event Name"] == "Christmas Day") & (df['Date'].dt.day == 24))]
+
+        # Drop Thanksgiving and keep Black Friday
+        thanksgiving_df = df[(df["Event Name"] == "Thanksgiving Day")]
+        df = df[(df["Event Name"] != "Thanksgiving Day")]
+        # Loop through and drop Thanksgiving
+        thanksgiving_df = thanksgiving_df.groupby(thanksgiving_df['Date'].dt.year)
+        modified_group = []
+        for name, group in thanksgiving_df:
+            group = group.drop(group.index[1])
+            # Rename to Black Friday
+            group["Event Name"] = "Black Friday"
+            modified_group.append(group)
+
+        thanksgiving_df = pd.concat(modified_group)
+        df = pd.concat([df, thanksgiving_df], ignore_index=True)
+        df = df.sort_values(by='Date')
+
+        # Drop non-official Independence Days
+        df = df[~((df["Event Name"] == "Independence Day") & (df['Date'].dt.day != 4))]
+
+
+        holiday_dates = df['Date'].to_numpy(dtype='datetime64[D]')
+        dates = self.raw_data['Date'].to_numpy(dtype='datetime64[D]')
+        dates = np.unique(dates)
+        df = pd.DataFrame(columns=['Date', "Holiday Proximity"])
+        # Find the nearest holiday by calcualting the interval between all holidays, and taking the min
+        for date in dates:
+            day_differences = []
+            for holidays in holiday_dates:
+                day_differences.append(np.abs(date - holidays).astype('timedelta64[D]').astype(int))
+            nearest = np.min(day_differences)
+            df.loc[len(df)] = [date, nearest]
+
+        # Reformat date so it can be correctly grouped when merging
+        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+
+        # Check if no data is currently stored
+        if self.raw_data is None or self.raw_data.empty:
+            self.raw_data = df
+        else:
+            # Fill in holiday proximity data
+            self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
+    
+    def update_date_data(self):
+        date_df = pd.DataFrame({'day of year': pd.to_datetime(self.raw_data['Date']).dt.dayofyear})
+        date_df = date_df.drop_duplicates().reset_index(drop=True)
+        self.raw_data['Sin Date'] = np.sin(2 * np.pi * date_df['day of year'] / 365)
+        self.raw_data['Cos Date'] = np.cos(2 * np.pi * date_df['day of year'] / 365)
