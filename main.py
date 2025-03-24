@@ -4,7 +4,6 @@ import pandas as pd
 from sklearn.decomposition import PCA
 
 
-
 import neural_network as neuralNetwork
 import result_saving_utils as savingUtils
 import data_utils as dataUtils
@@ -12,9 +11,8 @@ from stock_data_container import StockDataContainer
 from config import (
     SEQUENCE_LENGTH, STOCK_NAMES, EPOCHS, EARLY_STOP_PATIENCE, 
     BATCH_SIZE, UPDATE_DATA, CREATE_NEW_MODEL, TESTING, 
-    LOADING_MODEL, TESTING_CUSTOM_MODEL, BACKUP_DATA, PERCENTAGE_DATA, COMBINED_DATA
+    LOADING_MODEL, TESTING_CUSTOM_MODEL, BACKUP_DATA
 )
-
 
 def main():
     if STOCK_NAMES[0] == 'ALL':
@@ -27,31 +25,23 @@ def main():
 
         stock_data = StockDataContainer(stock)
         if UPDATE_DATA:
+            '''
+            Turning off for now while experimenting with getting data. Turn back on when everything is set since in theory should be 
+            backing up data every time before pulling new data
+            '''
             # Backup pre-existing data incase something goes wrong fetching new data
-            dataUtils.backup_data(stock_data.ticker)
+            # dataUtils.backup_data(stock_data.ticker)
 
             stock_data.update_all_data()
+
             # Combine with pre-existing saved data if applicable    
-            combined_data = dataUtils.combine_data(stock_data)
-            dataUtils.save_data(combined_data, stock_data.ticker)    
+            stock_data.training_data = dataUtils.merge_with_old_data(stock_data)
+
+            dataUtils.save_data(stock_data.training_data, stock_data.ticker)
         else:
             stock_data.get_existing_data()
 
-
-        if stock_data.raw_data.empty:
-            print("DatasetError: no data to create dataset with")
-            return
-
-        if COMBINED_DATA:
-            stock_data.percentage_change_data = dataUtils.add_percentage_changes_to_dataset(stock_data)
-            stock_data.training_data = dataUtils.combine_datasets(stock_data.raw_data, stock_data.percentage_change_data)
-            stock_data.training_data.to_csv(f'data/{stock_data.ticker}/merged.csv', index=False)
-        elif PERCENTAGE_DATA:
-            # Convert dataset to percent changes since predicting stock movement/changes
-            stock_data.training_data = dataUtils.add_percentage_changes_to_dataset(stock_data)
-        else:
-            stock_data.training_data = stock_data.raw_data
-
+    
         # Reverse data so model trains from oldest to newest
         modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)
         # Drop Date column since only used for debugging/data alignment purposes
@@ -61,14 +51,16 @@ def main():
         features, labels = dataUtils.create_windowed_dataset(modified_training_data)
 
         training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
-        (   
+
+        (
             scaled_training_features, 
             scaled_training_labels, 
             scaled_testing_features, 
             scaled_testing_labels, 
             feature_scaler, 
-            label_scaler 
+            label_scaler,
         ) = dataUtils.scale_dataset(training_features, training_labels, testing_features, testing_labels)
+
 
         # Create new directory to house training session data
         dir_path = savingUtils.create_new_dir(stock_data.ticker)
@@ -151,18 +143,14 @@ def main():
 
         # Make predictions
         scaled_predictions = model.predict(scaled_testing_features)
-        if PERCENTAGE_DATA:
-            predictions = label_scaler.inverse_transform(scaled_predictions)
-            predicted_labels = dataUtils.reverse_percentages(predictions, stock_data.raw_data)
-        else:
-            predicted_labels = label_scaler.inverse_transform(scaled_predictions)
+        predicted_labels = label_scaler.inverse_transform(scaled_predictions)
 
         # Save graph of predicted vs actual
         results = savingUtils.create_results_graph(predicted_labels, stock_data)
         savingUtils.save_graph(results, dir_path, "results.png")
 
         # Save notes for training session
-        savingUtils.save_training_notes(dir_path, model, history, predicted_labels, stock_data.raw_data)
+        savingUtils.save_training_notes(dir_path, model, history, predicted_labels, stock_data.training_data)
 
         # Save model
         savingUtils.save_model(model, dir_path)

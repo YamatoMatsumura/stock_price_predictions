@@ -19,12 +19,14 @@ SENTIMENT_MISSING_PERCENT = 0.2  # Cutoff percent to ignore sentiment data from 
 class StockDataContainer:
     def __init__(self, ticker):
         self.ticker = ticker
+
+        # API keys
         self.api_key_AV = None
         self.api_key_polygon = None
         self.api_key_finnhub = None
         self.AV_key_count = None
+
         self.raw_data = None
-        self.percentage_change_data = None
         self.training_data = None
         self.last_updated = self._get_last_updated()
         self.script_first_time_called = True
@@ -66,7 +68,7 @@ class StockDataContainer:
             return None
         
     def get_existing_data(self):
-        self.raw_data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
+        self.training_data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
 
     
     def update_all_data(self):
@@ -374,7 +376,7 @@ class StockDataContainer:
         return row
 
     def _check_max_API_call(self, data):
-        max_API_call_error = "Thank you for using Alpha Vantage! Our standard API rate limit is 25 requests per day."
+        max_API_call_error = "our standard API rate limit is 25 requests per day."
         if 'Information' in data.keys() or 'Note' in data.keys() or 'error' in data.keys():
             if 'error' in data.keys():
                 return True
@@ -406,7 +408,7 @@ class StockDataContainer:
                 self._get_new_AV_API_key()
                 url = self._get_new_AV_URL(url)
                 continue
-            
+
             # Refresh vpn again if tried to reconnect multiple times and not working
             if attemps == 3:
                 vpn_script.vpn_refresh_script(self.script_first_time_called, RUN_SCRIPT)

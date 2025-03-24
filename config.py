@@ -1,5 +1,5 @@
 # main
-STOCK_NAMES = ['AAPL']  # List of stock names to look at
+STOCK_NAMES = ['ALL']  # List of stock names to look at
 EPOCHS = 70  # Epochs to train model for
 EARLY_STOP_PATIENCE = 5  # Stops model training if reaches x amount of epochs without improvement
 
@@ -11,13 +11,9 @@ TESTING = False  # Loads previous hyperparm tuning session
 LOADING_MODEL = False # Loads previous model
 TESTING_CUSTOM_MODEL = True  # Creates model in nn.getManualModel(). No Hyperparm tuning
 
-PERCENTAGE_DATA = False
-RAW_DATA = False
-COMBINED_DATA = True
-
 
 # data_utils
-SEQUENCE_LENGTH = 50  # Sequence length for data set
+SEQUENCE_LENGTH = 20  # Sequence length for data set
 BATCH_SIZE = 2  # Batch size for data set
 
 

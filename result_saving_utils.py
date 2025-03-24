@@ -54,8 +54,7 @@ def create_results_graph(predicted_labels, stock_data):
     Returns:
         plt.figure.Figure: Matplotlib plot of the graph
     """
-
-    actual_labels = stock_data.raw_data['Close'].iloc[:1*PREDICTION_WINDOW].tolist()
+    actual_labels = stock_data.training_data['Close'].iloc[:1*PREDICTION_WINDOW].tolist()
 
     # Reverse since stock_data.data has most recent data first
     actual_labels.reverse()

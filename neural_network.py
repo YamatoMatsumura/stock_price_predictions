@@ -81,9 +81,9 @@ def get_manual_model():
 
     # model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=128, return_sequences=True, recurrent_dropout=0.2)))
     # model.add(tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(units=64, return_sequences=True, recurrent_dropout=0.2)))
-    model.add(tf.keras.layers.LSTM(units=128, recurrent_dropout=0.2, return_sequences=True))
-    model.add(tf.keras.layers.LSTM(units=64, recurrent_dropout=0.2, return_sequences=True))
-    model.add(tf.keras.layers.LSTM(units=32, recurrent_dropout=0.2))
+    model.add(tf.keras.layers.LSTM(units=16, recurrent_dropout=0.2, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(units=8, recurrent_dropout=0.2, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(units=4, recurrent_dropout=0.2))
 
     model.add(tf.keras.layers.Dense(PREDICTION_WINDOW))
 

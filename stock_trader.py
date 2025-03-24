@@ -30,7 +30,7 @@ def tradeStock(tradeType, ticker, quantity):
     
     # Submit order to trading client
     order = tradingClient.submit_order(order_data = marketOrderData)
-    trackTrade(tradeType, ticker, quantity)
+    logTrade(tradeType, ticker, quantity)
 
 def buyStock(ticker, quantity):
     tradeStock("BUY", ticker, quantity)
@@ -38,7 +38,7 @@ def buyStock(ticker, quantity):
 def sellStock(ticker, quantity):
     tradeStock("SELL", ticker, quantity)
 
-def trackTrade(tradeType, ticker, quantity):
+def logTrade(tradeType, ticker, quantity):
     logEntry = (f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {tradeType} - Ticker: {ticker} - Quantity: {quantity}")
     
     with open("trade_log.txt", 'a') as file:

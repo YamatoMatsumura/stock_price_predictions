@@ -7,59 +7,6 @@ import os
 from config import SEQUENCE_LENGTH, BATCH_SIZE, PREDICTION_WINDOW, STOCK_NAMES
 
 
-def add_percentage_changes_to_dataset(stock_data):
-    """Adds percentage changes column to the dataset.
-
-    The new column is named "% + original_column_name".
-    The percentage is calculated such that the value at Day 1 represents
-    the percentage change from Day 0 to Day 1.
-        
-    Args:
-        stock_data (StockDataContainer): The stock data container
-
-    Returns:
-        DataFrame: A DataFrame containing all stock data with the new percentage
-        change columns. Data is sorted from newest to oldest.
-    """
-
-    df = stock_data.raw_data.copy()
-
-    # Reverse data since percentage change is calculated from oldest to newest
-    df = df.iloc[::-1].reset_index(drop=True)
-
-    for col in df.columns:
-        if col != 'Date':  # Date is only for debugging/data alignment purposes
-            df[col] = df[col].pct_change()
-            df.rename(columns={col: '%' + col}, inplace=True)
-    # Oldest date has no percentage change
-    df = df.iloc[1:]
-
-    # Aroon up/down can have inf/empty values so replace with 0
-    df = df.replace([np.inf, -np.inf, np.NAN, ''], 0)
-
-    # Reverse for saving purposes
-    df = df.iloc[::-1].reset_index(drop=True)
-
-    return df
-
-def combine_datasets(left, right):
-    """Merges two datasets on the date column.
-
-    Assumes that the only common column between the datasets is the "date".
-
-    Args:
-        left (DataFrame): The first DataFrame
-        right (DataFrame): The second DataFrame
-
-    Returns:
-        DataFrame: A merged DataFrame sorted from newest to oldest
-    """
-
-    combined_df = pd.merge(left, right, on = 'Date', how='outer')
-    combined_df = combined_df.replace('', np.nan).dropna(axis=0, how='any').reset_index(drop=True)
-    combined_df = combined_df.iloc[::-1].reset_index(drop=True)
-    return combined_df
-
 def create_windowed_dataset(training_data):
     """Transforms the dataset into overlapping windows of data
 
@@ -124,25 +71,6 @@ def split_dataset(features, labels):
 
     return training_features, training_labels, testing_features, testing_labels
 
-def reverse_percentages(predictions, data):
-    """Converts percentage change predictions into closing price predictions
-
-    Args:
-        predictions (list): A list of predicted percentage changes
-        data (DataFrame): A DataFrame containing all stock data
-
-    Returns:
-        list: A list of predicted closing prices
-    """
-
-    initial_close = data['Close'].iloc[1*PREDICTION_WINDOW]
-
-    predicted_label_values = []
-    for prediction in predictions:
-        predicted_label_values.append(initial_close * (1 + prediction))
-        initial_close = predicted_label_values[-1]
-
-    return predicted_label_values
 
 def scale_dataset(training_features, training_labels, testing_features, testing_labels):
     """Applies the StandardScaler to normalize labels and features.
@@ -182,7 +110,7 @@ def scale_dataset(training_features, training_labels, testing_features, testing_
 
     return training_features, training_labels, testing_features, testing_labels, feature_scaler, label_scaler
 
-def combine_data(stock_data):
+def merge_with_old_data(stock_data):
     """Combines pre-existing data from "trained_data.csv" with new stock data
 
     Args:
