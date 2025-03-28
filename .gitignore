@@ -5,6 +5,9 @@ vpn_script.py
 data/
 *.json
 
+# Testing sandbox
+testing/
+
 # Work management
 plan.txt
 TODO.txt
