@@ -6,7 +6,7 @@ import random
 import keyboard
 import numpy as np
 
-import vpn_script
+import data_collection.vpn_script as vpn_script
 
 
 RUN_SCRIPT = True  # Controls whether to run VPN refresh script or not

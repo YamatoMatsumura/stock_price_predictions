@@ -1,9 +1,11 @@
 import os
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import date
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error
+import pickle
 
 from config import SEQUENCE_LENGTH, PREDICTION_WINDOW, BATCH_SIZE, EPOCHS, EARLY_STOP_PATIENCE
 
@@ -54,18 +56,29 @@ def create_results_graph(predicted_labels, stock_data):
     Returns:
         plt.figure.Figure: Matplotlib plot of the graph
     """
+
+    # Grab actual labels and dates to graph later
     actual_labels = stock_data.training_data['Close'].iloc[:1*PREDICTION_WINDOW].tolist()
+    dates = stock_data.training_data['Date'].iloc[:1*PREDICTION_WINDOW].tolist()
+    # Flatten predictions down to 1D
+    predicted_labels = predicted_labels.flatten()
 
-    # Reverse since stock_data.data has most recent data first
+    # Reverse since stock_data.training_data has most recent data first
     actual_labels.reverse()
-
+    dates.reverse()
 
     results_graph = plt.figure(figsize=(10, 6))
 
     plt.plot(list(actual_labels), linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
-    plt.plot(list(predicted_labels[0]), linestyle='--', linewidth = 0.7, color='r', label='Predicted', marker='o', markersize=1)
+    plt.plot(list(predicted_labels), linestyle='--', linewidth = 0.7, color='r', label='Predicted', marker='o', markersize=1)
+
+    # Set custom x ticks to match dates
+    tick_positions = list(range(0, len(actual_labels), 2))
+    tick_labels = [dates[i] for i in tick_positions]
+    plt.xticks(ticks=tick_positions, labels=tick_labels)
+
     plt.title('Actual vs. Predicted')
-    plt.xlabel('Sample')
+    plt.xlabel('Dates')
     plt.ylabel('Value')
     plt.legend()
     plt.grid(True)
@@ -81,8 +94,9 @@ def save_graph(graph, dir_path, file_name):
         dir_path (string): The directory path where the graph will be saved
         file_name (string): The name of the file to save the graph as
     """
-    
     graph.savefig(f'{dir_path}/{file_name}')
+    graph.clear()
+
 
 def create_loss_graph(history):
     """Creates a loss graph comparing training loss and validation loss
@@ -178,3 +192,8 @@ def save_training_notes(dir_path, model, history, predicted_labels, data):
             elif isinstance(layer, tf.keras.layers.Dense):
                 file.write("- Output Layer\n")
                 file.write(' '*4 + f"* Units: {layer.units}\n")
+
+def save_training_history(history, ticker):
+    # Save history
+    with open(f'data/{ticker}/history.pkl', 'wb') as file:
+        pickle.dump(history.history, file)

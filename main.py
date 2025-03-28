@@ -1,17 +1,16 @@
 import tensorflow as tf
 import keras_tuner as kt
-import pandas as pd
-from sklearn.decomposition import PCA
+import pickle
 
-
-import neural_network as neuralNetwork
-import result_saving_utils as savingUtils
-import data_utils as dataUtils
-from stock_data_container import StockDataContainer
+import trading.stock_trader as trader
+import modeling.neural_network as neuralNetwork
+import modeling.result_saving_utils as savingUtils
+import data_collection.data_utils as dataUtils
+from data_collection.stock_data_container import StockDataContainer
 from config import (
     SEQUENCE_LENGTH, STOCK_NAMES, EPOCHS, EARLY_STOP_PATIENCE, 
-    BATCH_SIZE, UPDATE_DATA, CREATE_NEW_MODEL, TESTING, 
-    LOADING_MODEL, TESTING_CUSTOM_MODEL, BACKUP_DATA
+    BATCH_SIZE, UPDATE_DATA, CREATE_NEW_MODEL, 
+    LOADING_MODEL, TESTING_CUSTOM_MODEL, BACKUP_DATA, PREDICTION_WINDOW
 )
 
 def main():
@@ -51,6 +50,7 @@ def main():
         features, labels = dataUtils.create_windowed_dataset(modified_training_data)
 
         training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
+
 
         (
             scaled_training_features, 
@@ -95,39 +95,18 @@ def main():
             # Fit model on training data
             history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
-        elif TESTING:
-
-            # Choose version to load
-            version = input("Select tuning session to load: ")
-
-            # Initialize tuner from correct version
-            tuner = kt.Hyperband(
-                neuralNetwork.get_model(SEQUENCE_LENGTH, stock_data.raw_data.shape[1]),
-                objective='loss',
-                max_epochs=50,
-                factor=3,
-                directory=f'data/{stock_data.ticker}/{str(version)}',
-                project_name=f"Hyperparam Tuning",
-            )
-
-            # Reload previous tuner hyperparams
-            tuner.reload()
-
-            # Create model based on best hps
-            best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
-            model = tuner.hypermodel.build(best_hps)
-
-            # Fit model on training data
-            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+            # Save training history
+            savingUtils.save_training_history(history, stock_data.ticker)
 
         elif LOADING_MODEL:
 
             # Load model
             version = input("Select version to load (0 for old): ")
 
-            if version == 0:
+            if version == str(0):
                 model = tf.keras.models.load_model(f'data/{stock_data.ticker}/model.keras')
-            model = tf.keras.models.load_model(f'data/{stock_data.ticker}/{str(version)}/model.keras')
+            else:
+                model = tf.keras.models.load_model(f'data/{stock_data.ticker}/{str(version)}/model.keras')
 
             # Train model on new data
             # ****************************************************************
@@ -139,6 +118,8 @@ def main():
             model = neuralNetwork.get_manual_model()
 
             history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+
+            savingUtils.save_training_history(history, stock_data.ticker)
 
 
         # Make predictions
@@ -154,6 +135,17 @@ def main():
 
         # Save model
         savingUtils.save_model(model, dir_path)
+
+
+        # Check if model performed well enough to go off prediction
+        with open(f'data/{stock_data.ticker}/history.pkl', 'rb') as file:
+            history = pickle.load(file)
+        
+        if (trader.check_model_performance(testing_labels, predicted_labels) == True):
+            predictions = trader.make_next_prediction(stock_data, feature_scaler, label_scaler)
+            if (trader.worth_buying(stock_data, predictions)):
+                print("Worth buying!!")
+                trader.make_trade(stock_data, predictions)
 
 
 if __name__ == '__main__':
