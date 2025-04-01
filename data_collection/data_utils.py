@@ -134,32 +134,29 @@ def merge_with_old_data(stock_data):
 
         data = pd.concat([existing_data, new_data], ignore_index=True)
 
-        # Merge duplicate date days and fill in data by cross referencing rows
-        data = data.groupby('Date').apply(lambda x: x.ffill().bfill().iloc[0]).infer_objects(copy=False).reset_index(drop=True)
+        return clean_and_process_data(data)
 
-        # Get rid of all rows with missing data
-        data = data.replace('', np.nan).dropna(axis=0, how='any').reset_index(drop=True)
-
-        # Make sure no duplicates
-        data.drop_duplicates(inplace=True)
-
-        # Make sure dates are in right order
-        data = data.sort_values(by='Date', ascending=False).reset_index(drop=True)
-
-        return data
-
-    # If no pre-existing data  
     except:
-        # Merge duplicate date days and fill in data by cross referencing rows
-        new_data = new_data.groupby('Date').apply(lambda x: x.ffill().bfill().iloc[0]).infer_objects(copy=False).reset_index(drop=True)
+        # If no pre-existing data, just clean new data
 
-        # Get rid of all rows with missing data
-        new_data = new_data.replace('', np.nan).dropna(axis=0, how='any').reset_index(drop=True)
+        return clean_and_process_data(new_data)
 
-        # Make sure dates are in right order
-        new_data = new_data.sort_values(by='Date', ascending=False).reset_index(drop=True)
+def clean_and_process_data(data):
+    # Merge duplicate date days and fill in data by cross referencing rows
+    data['Date'] = pd.to_datetime(data['Date'])
+    data = data.groupby('Date').first()  # Grabs first non-null value
+    data = data.reset_index()
 
-        return new_data
+    # Get rid of all rows with missing data
+    data = data.replace('', np.nan).dropna(axis=0, how='any').reset_index(drop=True)
+
+    # Make sure no duplicates
+    data.drop_duplicates(inplace=True)
+
+    # Make sure dates are in right order
+    data = data.sort_values(by='Date', ascending=False).reset_index(drop=True)
+    
+    return data
 
 
 def save_data(data, ticker):

@@ -3,7 +3,7 @@ STOCK_NAMES = ['AAPL']  # List of stock names to look at
 EPOCHS = 70  # Epochs to train model for
 EARLY_STOP_PATIENCE = 5  # Stops model training if reaches x amount of epochs without improvement
 
-UPDATE_DATA = False  # Updates training data to pull newest data
+UPDATE_DATA = True  # Updates training data to pull newest data
 BACKUP_DATA = False # Copies current "trained_data.csv" to "trained_data_backup.csv"
 
 CREATE_NEW_MODEL = False  # Does Hyperparm tuning & model.fit

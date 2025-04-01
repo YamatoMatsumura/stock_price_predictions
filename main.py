@@ -40,6 +40,8 @@ def main():
         else:
             stock_data.get_existing_data()
 
+        return
+
     
         # Reverse data so model trains from oldest to newest
         modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)

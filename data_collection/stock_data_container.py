@@ -11,7 +11,7 @@ import data_collection.vpn_script as vpn_script
 
 RUN_SCRIPT = True  # Controls whether to run VPN refresh script or not
 ANALYTICS_WINDOW_SIZE = 10  # Window size for analytics portion (mean, median, etc.) Minimum of 10 days
-ANALYTICS_RANGE = '3year'  # Cutoff range for data
+ANALYTICS_RANGE = '500year'  # Cutoff range for data
 TECHNICAL_WINDOW_SIZE = 5  # Window size for technical portion (SMA, EMA, Variance, etc.)
 SENTIMENT_MISSING_PERCENT = 0.2  # Cutoff percent to ignore sentiment data from data set
 
@@ -25,6 +25,8 @@ class StockDataContainer:
         self.api_key_polygon = None
         self.api_key_finnhub = None
         self.AV_key_count = None
+        self.tiingo_keys = []
+        self.tiingo_key_index = 0  # Tracks which api key to use
 
         self.raw_data = None
         self.training_data = None
@@ -51,6 +53,11 @@ class StockDataContainer:
             self.api_key_AV = file.read()
         with open('api_keys/Finnhub.txt') as file:
             self.api_key_finnhub = file.read()
+        with open('api_keys/Tiingo.txt') as file:
+            keys = []
+            for line in file:
+                keys.append(line.strip())
+            self.tiingo_keys = keys
     
     def _count_AV_keys(self):
         self.AV_key_count = 0
@@ -71,57 +78,64 @@ class StockDataContainer:
         self.training_data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
 
     
-    def update_all_data(self):
+    def update_all_data(self, last_updated):
         print("Updating all data...")
 
-        self.update_sentiment_data()
-        self.update_OHLC_data()
-        self.update_mean_data()
-        self.update_return_data()
-        self.update_STDDev_data()
-        self.update_median_data()
-        self.update_SMA_data()
-        self.update_EMA_data()
-        self.update_STOCH_data()
-        self.update_RSI_data()
-        self.update_ADX_data()
-        self.update_CCI_data()
-        self.update_AROON_data()
-        self.update_BBANDS_data()
-        self.update_AD_data()
-        self.update_OBV_data()
-        self.update_holiday_proximity_data()
-        self.update_date_data()
+        # self.update_sentiment_data()
+        self.update_OHLC_data(last_updated)
+        # self.update_mean_data()
+        # self.update_return_data()
+        # self.update_STDDev_data()
+        # self.update_median_data()
+        # self.update_SMA_data()
+        # self.update_EMA_data()
+        # self.update_STOCH_data()
+        # self.update_RSI_data()
+        # self.update_ADX_data()
+        # self.update_CCI_data()
+        # self.update_AROON_data()
+        # self.update_BBANDS_data()
+        # self.update_AD_data()
+        # self.update_OBV_data()
+        # self.update_holiday_proximity_data()
+        # self.update_date_data()
 
         # Turn off vpn once done fetching data
         vpn_script.close_VPN(RUN_SCRIPT)
 
 
-    def update_OHLC_data(self):
-        # Call Polygon API to get OHLC data
-        end_date = dt.datetime.today().strftime('%Y-%m-%d')
-        start_date = '2022-05-20' # Cutoff date is roughly 2 years before current date
-        url = f'https://api.polygon.io/v2/aggs/ticker/{self.ticker}/range/1/day/{start_date}/{end_date}?apiKey={self.api_key_polygon}'
-        response = requests.get(url)
-        df = pd.DataFrame(response.json()['results'])
+    def update_OHLC_data(self, start_date='1900-01-01'):
+        while True:
+            try:
+                url = f"https://api.tiingo.com/tiingo/daily/{self.ticker}/prices"
+                params = {
+                    'startDate': start_date,
+                    'endDate': dt.datetime.now().date(),
+                    'format': 'json',
+                    'sort': '-date'
+                }
+                headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Token {self.tiingo_keys[self.tiingo_key_index]}'
+                }
 
-        # Format response
-        df['Date'] = pd.to_datetime(df['t'] / 1000, unit='s')
-        df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
-        df = df.rename(columns= {
-            'v': 'Volume',
-            'vw': 'Volume Weighted Average',
-            'o': 'Open',
-            'c': 'Close',
-            'h': 'High',
-            'l': 'Low',
-            'n': 'Transactions'
-            })
-        df.drop(columns=['t'], inplace=True)
-        df = df.iloc[:, [7, 2, 4, 5, 3, 0, 1, 6]]
+                response = requests.get(url, params=params, headers=headers)
+                data = response.json()
+                break
+            except requests.exceptions.RequestException as error:
+                self._cycle_tiingo_key()
+        
+        # Check if no more data to fetch
+        if not data:
+            self.raw_data = pd.DataFrame()
+            return
 
-        # Reverse so newest date is at the top
-        df = df.iloc[::-1]
+        df = pd.DataFrame(data)
+        df.drop(columns=['open', 'high', 'low', 'close', 'volume', 'divCash', 'splitFactor'], inplace=True)
+        df.rename(columns={'adjOpen': 'Open', 'adjHigh': 'High', 'adjLow': 'Low', 
+                                'adjClose': 'Close', 'adjVolume': 'Volume', 'date': 'Date'}, inplace=True)
+        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        df.reset_index(drop=True, inplace=True)
 
         # Check if no data is currently stored
         if self.raw_data is None or self.raw_data.empty:
@@ -129,6 +143,9 @@ class StockDataContainer:
         else:
             # Fill in OHLC data
             self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
+    
+    def _cycle_tiingo_key(self):
+        self.tiingo_key_index = (self.tiingo_key_index + 1) % len(self.tiingo_keys)
 
     def update_sentiment_data(self):
         # Initialize empty dataframe
