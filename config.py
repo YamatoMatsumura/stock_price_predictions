@@ -1,6 +1,6 @@
 # main
-STOCK_NAMES = ['AAPL']  # List of stock names to look at
-EPOCHS = 70  # Epochs to train model for
+STOCK_NAMES = ['AMZN']  # List of stock names to look at
+EPOCHS = 10  # Epochs to train model for
 EARLY_STOP_PATIENCE = 5  # Stops model training if reaches x amount of epochs without improvement
 
 UPDATE_DATA = True  # Updates training data to pull newest data
@@ -12,10 +12,10 @@ TESTING_CUSTOM_MODEL = True  # Creates model in nn.getManualModel(). No Hyperpar
 
 
 # data_utils
-SEQUENCE_LENGTH = 20  # Sequence length for data set
+SEQUENCE_LENGTH = 10  # Sequence length for data set
 BATCH_SIZE = 2  # Batch size for data set
 
 
 # neural_network
-PREDICTION_WINDOW = 20 # Controls how many days into the future to predict
+PREDICTION_WINDOW = 30 # Controls how many days into the future to predict
 

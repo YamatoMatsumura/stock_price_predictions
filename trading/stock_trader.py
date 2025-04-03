@@ -2,7 +2,6 @@ import tensorflow as tf
 import numpy as np
 from sklearn.metrics import mean_squared_error
 
-from alpaca.trading.client import TradingClient
 import trading.stock_trading_utils as trade_utils
 from config import PREDICTION_WINDOW
 
@@ -50,21 +49,14 @@ def worth_buying(stock_data, predictions):
     return False
 
 
-def make_trade(stock_data, predictions):
+def make_trade(stock_data, predictions, trading_client):
     close_df = stock_data.training_data.copy()['Close']
     close_df.iloc[::-1].reset_index(drop=True)
 
     max_value = max(predictions)
     max_index = predictions.index(max_value)
 
-    # Get API keys
-    with open('api_keys/alpaca/key.txt') as file:
-        KEY = file.read()
-    with open('api_keys/alpaca/secret.txt') as file:
-        SECRET = file.read()
 
-    # Initialize trading client
-    trading_client = TradingClient(KEY, SECRET, paper=True)
 
     # Make trade
     trade_utils.buyStock(stock_data.ticker, 5, trading_client, max_index)

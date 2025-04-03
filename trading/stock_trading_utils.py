@@ -2,6 +2,8 @@ from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 from datetime import datetime, timedelta
 
+from config import SELL_DATES
+
 
 
 def tradeStock(tradeType, ticker, quantity, tradingClient, hold_date):
@@ -36,5 +38,10 @@ def logTrade(tradeType, ticker, quantity, hold_date):
                 f"{tradeType} - Ticker: {ticker} - Quantity: {quantity} - "
                 f"Selling On: {(today_date + timedelta(days=hold_date)).strftime('%Y-%m-%d')} \n")
     
+    # Take note of what day the stock will be sold on
+    SELL_DATES[ticker] = [(today_date + timedelta(days=hold_date)).date(), quantity]
+
+    
     with open("trade_log.txt", 'a') as file:
         file.write(logEntry)
+

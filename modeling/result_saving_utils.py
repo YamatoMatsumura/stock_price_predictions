@@ -72,12 +72,7 @@ def create_results_graph(predicted_labels, stock_data):
     plt.plot(list(actual_labels), linestyle='-', linewidth = 0.7, color='b', label='Actual', marker='o', markersize=1)
     plt.plot(list(predicted_labels), linestyle='--', linewidth = 0.7, color='r', label='Predicted', marker='o', markersize=1)
 
-    # Set custom x ticks to match dates
-    tick_positions = list(range(0, len(actual_labels), 2))
-    tick_labels = [dates[i] for i in tick_positions]
-    plt.xticks(ticks=tick_positions, labels=tick_labels)
-
-    plt.title('Actual vs. Predicted')
+    plt.title(f'Actual vs. Predicted ({dates[0]} - {dates[-1]})')
     plt.xlabel('Dates')
     plt.ylabel('Value')
     plt.legend()

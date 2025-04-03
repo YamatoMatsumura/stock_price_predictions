@@ -78,7 +78,7 @@ class StockDataContainer:
         self.training_data = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
 
     
-    def update_all_data(self, last_updated):
+    def update_all_data(self, last_updated='1900-01-01'):
         print("Updating all data...")
 
         # self.update_sentiment_data()

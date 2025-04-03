@@ -57,10 +57,8 @@ def split_dataset(features, labels):
         list: Testing labels (last windowed labels)
     """
 
-    if SEQUENCE_LENGTH > PREDICTION_WINDOW:
-        greatest_window = SEQUENCE_LENGTH
-    else:
-        greatest_window = PREDICTION_WINDOW
+    # Get bigger of sequence length or prediction window
+    greatest_window = get_greatest_window()
 
     # Grab just last element since only testing one PREDICTION_WINDOW
     testing_features = features[-1:]
@@ -191,3 +189,9 @@ def get_all_tickers():
     STOCK_NAMES.clear()
     for dirs in os.listdir('data/'):
         STOCK_NAMES.append(dirs)
+
+def get_greatest_window():
+    if SEQUENCE_LENGTH > PREDICTION_WINDOW:
+        return SEQUENCE_LENGTH
+    else:
+        return PREDICTION_WINDOW

@@ -40,8 +40,6 @@ def main():
         else:
             stock_data.get_existing_data()
 
-        return
-
     
         # Reverse data so model trains from oldest to newest
         modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)
@@ -71,7 +69,7 @@ def main():
         early_stopping = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=EARLY_STOP_PATIENCE, restore_best_weights=True)
 
         if CREATE_NEW_MODEL:
-            
+
             # Initialize tuner
             tuner = kt.Hyperband(
                 lambda hp: neuralNetwork.get_model(hp, SEQUENCE_LENGTH, stock_data.raw_data.shape[1]),
@@ -139,15 +137,15 @@ def main():
         savingUtils.save_model(model, dir_path)
 
 
-        # Check if model performed well enough to go off prediction
-        with open(f'data/{stock_data.ticker}/history.pkl', 'rb') as file:
-            history = pickle.load(file)
+        # # Check if model performed well enough to go off prediction
+        # with open(f'data/{stock_data.ticker}/history.pkl', 'rb') as file:
+        #     history = pickle.load(file)
         
-        if (trader.check_model_performance(testing_labels, predicted_labels) == True):
-            predictions = trader.make_next_prediction(stock_data, feature_scaler, label_scaler)
-            if (trader.worth_buying(stock_data, predictions)):
-                print("Worth buying!!")
-                trader.make_trade(stock_data, predictions)
+        # if (trader.check_model_performance(testing_labels, predicted_labels) == True):
+        #     predictions = trader.make_next_prediction(stock_data, feature_scaler, label_scaler)
+        #     if (trader.worth_buying(stock_data, predictions)):
+        #         print("Worth buying!!")
+        #         trader.make_trade(stock_data, predictions)
 
 
 if __name__ == '__main__':
