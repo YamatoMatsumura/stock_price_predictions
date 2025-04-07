@@ -58,8 +58,8 @@ def create_results_graph(predicted_labels, stock_data):
     """
 
     # Grab actual labels and dates to graph later
-    actual_labels = stock_data.training_data['Close'].iloc[:1*PREDICTION_WINDOW].tolist()
-    dates = stock_data.training_data['Date'].iloc[:1*PREDICTION_WINDOW].tolist()
+    actual_labels = stock_data.training_data['close'].iloc[:1*PREDICTION_WINDOW].tolist()
+    dates = stock_data.training_data['date'].iloc[:1*PREDICTION_WINDOW].tolist()
     # Flatten predictions down to 1D
     predicted_labels = predicted_labels.flatten()
 
@@ -137,7 +137,7 @@ def save_training_notes(dir_path, model, history, predicted_labels, data):
     """
 
     # Grab testing labels from stock_data.data
-    testing_labels = data['Close'].iloc[:1*PREDICTION_WINDOW].tolist()
+    testing_labels = data['close'].iloc[:1*PREDICTION_WINDOW].tolist()
     testing_labels.reverse()
 
     # Reshape predictions into 1D

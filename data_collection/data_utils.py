@@ -21,7 +21,7 @@ def create_windowed_dataset(training_data):
     """
 
     df = training_data.copy()
-    labels = df.pop('Close').values
+    labels = df.pop('close').values
     features = df.values
 
     # Create windowed labels
@@ -141,8 +141,8 @@ def merge_with_old_data(stock_data):
 
 def clean_and_process_data(data):
     # Merge duplicate date days and fill in data by cross referencing rows
-    data['Date'] = pd.to_datetime(data['Date'])
-    data = data.groupby('Date').first()  # Grabs first non-null value
+    data['date'] = pd.to_datetime(data['date'])
+    data = data.groupby('date').first()  # Grabs first non-null value
     data = data.reset_index()
 
     # Get rid of all rows with missing data
@@ -152,7 +152,7 @@ def clean_and_process_data(data):
     data.drop_duplicates(inplace=True)
 
     # Make sure dates are in right order
-    data = data.sort_values(by='Date', ascending=False).reset_index(drop=True)
+    data = data.sort_values(by='date', ascending=False).reset_index(drop=True)
     
     return data
 
