@@ -70,7 +70,7 @@ class StockDataContainer:
     def _get_last_updated(self):
         try:
             df = pd.read_csv('data/' + self.ticker + '/trained_data.csv')
-            return df['Date'].iloc[0]
+            return df['date'].iloc[0]
         except (pd.errors.EmptyDataError, FileNotFoundError):
             return None
         
@@ -83,6 +83,15 @@ class StockDataContainer:
 
         # self.update_sentiment_data()
         self.update_OHLC_data(last_updated)
+        self.update_sma()
+        self.update_ema()
+        self.update_rsi()
+        self.update_adx()
+        self.update_cci()
+        self.update_chaikin_ad()
+        self.update_obv()
+        self.update_date_data()
+
         # self.update_mean_data()
         # self.update_return_data()
         # self.update_STDDev_data()
@@ -98,7 +107,6 @@ class StockDataContainer:
         # self.update_AD_data()
         # self.update_OBV_data()
         # self.update_holiday_proximity_data()
-        # self.update_date_data()
 
         # Turn off vpn once done fetching data
         vpn_script.close_VPN(RUN_SCRIPT)
@@ -132,10 +140,13 @@ class StockDataContainer:
 
         df = pd.DataFrame(data)
         df.drop(columns=['open', 'high', 'low', 'close', 'volume', 'divCash', 'splitFactor'], inplace=True)
-        df.rename(columns={'adjOpen': 'Open', 'adjHigh': 'High', 'adjLow': 'Low', 
-                                'adjClose': 'Close', 'adjVolume': 'Volume', 'date': 'Date'}, inplace=True)
-        df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
+        df.rename(columns={'adjOpen': 'open', 'adjHigh': 'high', 'adjLow': 'low', 
+                                'adjClose': 'close', 'adjVolume': 'volume', 'date': 'date'}, inplace=True)
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
         df.reset_index(drop=True, inplace=True)
+
+        # Reverse to old data points are first for technical indicator calculations
+        df = df.iloc[::-1].reset_index(drop=True)
 
         # Check if no data is currently stored
         if self.raw_data is None or self.raw_data.empty:
@@ -146,6 +157,97 @@ class StockDataContainer:
     
     def _cycle_tiingo_key(self):
         self.tiingo_key_index = (self.tiingo_key_index + 1) % len(self.tiingo_keys)
+
+    def update_sma(self):
+        self.raw_data['sma_50'] = self.raw_data['close'].rolling(window=50).mean()
+        self.raw_data['sma_200'] = self.raw_data['close'].rolling(window=200).mean()
+
+    def update_ema(self):
+        self.raw_data['ema_50'] = self.raw_data['close'].ewm(span=50, adjust=False).mean()
+        self.raw_data['ema_200'] = self.raw_data['close'].ewm(span=200, adjust=False).mean()
+
+    def update_rsi(self):
+        # Calculate daily price changes
+        self.raw_data['price_change'] = self.raw_data['close'].diff()
+
+        # Separate gains (positive changes) and losses (negative changes)
+        self.raw_data['gain'] = self.raw_data['price_change'].where(self.raw_data['price_change'] > 0, 0)
+        self.raw_data['loss'] = -self.raw_data['price_change'].where(self.raw_data['price_change'] < 0, 0)
+
+        # Calculate the rolling average of gains and losses over the 14-day window
+        self.raw_data['avg_gain'] = self.raw_data['gain'].rolling(window=14, min_periods=1).mean()
+        self.raw_data['avg_loss'] = self.raw_data['loss'].rolling(window=14, min_periods=1).mean()
+
+        # Calculate the relative strength (RS)
+        self.raw_data['rs'] = self.raw_data['avg_gain'] / self.raw_data['avg_loss']
+
+        # Calculate the RSI
+        self.raw_data['rsi'] = 100 - (100 / (1 + self.raw_data['rs']))
+
+        # Drop the intermediate columns
+        self.raw_data.drop(['price_change', 'gain', 'loss', 'avg_gain', 'avg_loss', 'rs'], axis=1, inplace=True)
+    
+    def update_adx(self):
+        # Calculate True Range
+        self.raw_data['high_low'] = self.raw_data['high'] - self.raw_data['low']
+        self.raw_data['high_close'] = abs(self.raw_data['high'] - self.raw_data['close'].shift())
+        self.raw_data['low_close'] = abs(self.raw_data['low'] - self.raw_data['close'].shift())
+
+        self.raw_data['tr'] = self.raw_data[['high_low', 'high_close', 'low_close']].max(axis=1)
+
+        # Calculate +DM and -DM
+        self.raw_data['plus_dm'] = self.raw_data['high'] - self.raw_data['high'].shift()
+        self.raw_data['minus_dm'] = self.raw_data['low'].shift() - self.raw_data['low']
+
+        self.raw_data['plus_dm'] = self.raw_data['plus_dm'].where(self.raw_data['plus_dm'] > 0, 0)
+        self.raw_data['minus_dm'] = self.raw_data['minus_dm'].where(self.raw_data['minus_dm'] > 0, 0)
+
+        # Calculate smoothed +DI and -DI over 14 periods
+        self.raw_data['plus_di'] = (self.raw_data['plus_dm'].rolling(window=14).sum() / self.raw_data['tr'].rolling(window=14).sum()) * 100
+        self.raw_data['minus_di'] = (self.raw_data['minus_dm'].rolling(window=14).sum() / self.raw_data['tr'].rolling(window=14).sum()) * 100
+
+        # Calculate ADX (smoothed moving average of the difference between +DI and -DI)
+        self.raw_data['adx'] = abs(self.raw_data['plus_di'] - self.raw_data['minus_di']).rolling(window=14).mean()
+
+        # Drop intermediate columns
+        self.raw_data.drop(['high_low', 'high_close', 'low_close', 'plus_dm', 'minus_dm'], axis=1, inplace=True)
+
+    def update_cci(self):
+        # Calculate Typical Price
+        self.raw_data['typical_price'] = (self.raw_data['high'] + self.raw_data['low'] + self.raw_data['close']) / 3
+
+        # Calculate the 20-day SMA of Typical Price
+        self.raw_data['sma_tp'] = self.raw_data['typical_price'].rolling(window=20).mean()
+
+        # Calculate Mean Deviation
+        self.raw_data['mean_deviation'] = (self.raw_data['typical_price'] - self.raw_data['sma_tp']).abs().rolling(window=20).mean()
+
+        # Calculate CCI
+        self.raw_data['cci'] = (self.raw_data['typical_price'] - self.raw_data['sma_tp']) / (0.015 * self.raw_data['mean_deviation'])
+
+        # Drop intermediate columns
+        self.raw_data.drop(['typical_price', 'sma_tp', 'mean_deviation'], axis=1, inplace=True)
+    
+    def update_chaikin_ad(self):
+        # Calculate the Money Flow Multiplier
+        self.raw_data['money_flow_multiplier'] = ((self.raw_data['close'] - self.raw_data['low']) - (self.raw_data['high'] - self.raw_data['close'])) / (self.raw_data['high'] - self.raw_data['low'])
+
+        # Calculate the Money Flow Volume
+        self.raw_data['money_flow_volume'] = self.raw_data['money_flow_multiplier'] * self.raw_data['volume']
+
+        # Calculate the Accumulation/Distribution line (running total of money flow volume)
+        self.raw_data['chaikin_ad'] = self.raw_data['money_flow_volume'].cumsum()
+
+        # Drop intermediate columns
+        self.raw_data.drop(['money_flow_multiplier', 'money_flow_volume'], axis=1, inplace=True)
+
+    def update_obv(self):
+        # Calculate the OBV (On-Balance Volume)
+        self.raw_data['obv'] = (self.raw_data['volume'] * (self.raw_data['close'] > self.raw_data['close'].shift())).cumsum()
+
+        # Drop intermediate columns
+        self.raw_data.drop(['volume'], axis=1, inplace=True)
+
 
     def update_sentiment_data(self):
         # Initialize empty dataframe
@@ -518,7 +620,6 @@ class StockDataContainer:
             self.raw_data = pd.concat([self.raw_data, df], axis=0, join='outer')
     
     def update_date_data(self):
-        date_df = pd.DataFrame({'day of year': pd.to_datetime(self.raw_data['Date']).dt.dayofyear})
-        date_df = date_df.drop_duplicates().reset_index(drop=True)
+        date_df = pd.DataFrame({'day of year': pd.to_datetime(self.raw_data['date']).dt.dayofyear})
         self.raw_data['Sin Date'] = np.sin(2 * np.pi * date_df['day of year'] / 365)
         self.raw_data['Cos Date'] = np.cos(2 * np.pi * date_df['day of year'] / 365)
