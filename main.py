@@ -1,6 +1,7 @@
 import tensorflow as tf
 import keras_tuner as kt
-import pickle
+
+
 
 import trading.stock_trader as trader
 import modeling.neural_network as neuralNetwork
@@ -44,7 +45,51 @@ def main():
         # Reverse data so model trains from oldest to newest
         modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)
         # Drop Date column since only used for debugging/data alignment purposes
-        modified_training_data = modified_training_data.drop(columns=['Date'])
+        modified_training_data = modified_training_data.drop(columns=['date'])
+
+        # '''
+        # '''
+        # from sklearn.model_selection import train_test_split
+        # from sklearn.linear_model import LinearRegression, ElasticNet
+        # from sklearn.metrics import mean_absolute_error, mean_squared_error
+        # import numpy as np
+        # from sklearn.preprocessing import StandardScaler
+
+
+        # dir_path = savingUtils.create_new_dir(stock_data.ticker)
+        # features = modified_training_data.drop(columns=['close'])
+        # labels = modified_training_data['close']
+
+        # features = features.iloc[:-PREDICTION_WINDOW]
+        # labels = labels.iloc[PREDICTION_WINDOW:]
+
+        # training_features, testing_features, training_labels, testing_labels = train_test_split(features, labels, test_size=PREDICTION_WINDOW, shuffle=False)
+        # scaler = StandardScaler()
+        # training_features = scaler.fit_transform(training_features)
+        # testing_features = scaler.transform(testing_features)
+    
+        # model = ElasticNet(alpha=1.0, l1_ratio=0.5)
+        # model.fit(training_features, training_labels)
+        # predictions = model.predict(testing_features)
+        # graph = savingUtils.create_results_graph(predictions, stock_data)
+        # savingUtils.save_graph(graph, dir_path, "linear_regression.png")
+
+        # # Get evaluation metrics
+        # mae = mean_absolute_error(testing_labels, predictions)
+        # mse = mean_squared_error(testing_labels, predictions)
+        # rmse = np.sqrt(mse)
+        # r_value = np.corrcoef(testing_labels, predictions)[0, 1]
+        # with open(dir_path + "/Linear notes.txt", 'w') as file:
+        #     file.write(f"mae: {mae}\n")
+        #     file.write(f"mse: {mse}\n")
+        #     file.write(f"rmse: {rmse}\n")
+        #     file.write(f"r: {r_value}\n")
+        # continue
+        # '''
+        # '''
+
+        # '''
+        # '''
 
 
         features, labels = dataUtils.create_windowed_dataset(modified_training_data)
@@ -52,11 +97,13 @@ def main():
         training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
 
 
+
+
         (
-            scaled_training_features, 
-            scaled_training_labels, 
-            scaled_testing_features, 
-            scaled_testing_labels, 
+            training_features, 
+            training_labels, 
+            testing_features, 
+            testing_labels, 
             feature_scaler, 
             label_scaler,
         ) = dataUtils.scale_dataset(training_features, training_labels, testing_features, testing_labels)
@@ -71,11 +118,10 @@ def main():
         if CREATE_NEW_MODEL:
 
             # Initialize tuner
-            tuner = kt.Hyperband(
-                lambda hp: neuralNetwork.get_model(hp, SEQUENCE_LENGTH, stock_data.raw_data.shape[1]),
+            tuner = kt.BayesianOptimization(
+                lambda hp: neuralNetwork.get_model(hp, SEQUENCE_LENGTH, stock_data.training_data.shape[1]),
                 objective='loss',
-                max_epochs=50,
-                factor=3,
+                max_trials=30,
                 directory=dir_path,
                 project_name=f"Hyperparam Tuning",
 
@@ -86,14 +132,14 @@ def main():
             )
 
             # Preform hyperparam tuning
-            tuner.search(scaled_training_features, scaled_training_labels, epochs=EPOCHS, callbacks=[early_stopping])
+            tuner.search(training_features, training_labels, epochs=EPOCHS, callbacks=[early_stopping])
 
             # Create model based on best hps
             best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
             model = tuner.hypermodel.build(best_hps) 
 
             # Fit model on training data
-            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+            history = model.fit(training_features, training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
             # Save training history
             savingUtils.save_training_history(history, stock_data.ticker)
@@ -117,13 +163,13 @@ def main():
         elif TESTING_CUSTOM_MODEL:
             model = neuralNetwork.get_manual_model()
 
-            history = model.fit(scaled_training_features, scaled_training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
+            history = model.fit(training_features, training_labels, batch_size=BATCH_SIZE, epochs=EPOCHS, callbacks=[early_stopping])
 
             savingUtils.save_training_history(history, stock_data.ticker)
 
 
         # Make predictions
-        scaled_predictions = model.predict(scaled_testing_features)
+        scaled_predictions = model.predict(testing_features)
         predicted_labels = label_scaler.inverse_transform(scaled_predictions)
 
         # Save graph of predicted vs actual
