@@ -188,7 +188,8 @@ def get_all_tickers():
 
     STOCK_NAMES.clear()
     for dirs in os.listdir('data/'):
-        STOCK_NAMES.append(dirs)
+        if dirs != 'historical_prices' and dirs != 'debug':
+            STOCK_NAMES.append(dirs)
 
 def get_greatest_window():
     if SEQUENCE_LENGTH > PREDICTION_WINDOW:
