@@ -91,6 +91,7 @@ def save_graph(graph, dir_path, file_name):
     """
     graph.savefig(f'{dir_path}/{file_name}')
     graph.clear()
+    plt.close(graph)
 
 
 def create_loss_graph(history):
@@ -178,11 +179,13 @@ def save_training_notes(dir_path, model, history, predicted_labels, data):
                     file.write("- Bidirectional LSTM Layer\n")
                     file.write(' '*4 + f"* Units: {lstm_layer.units}\n")
                     file.write(' '*4 + f"* Recurrent Dropout: {lstm_layer.recurrent_dropout}\n")
+                    # file.write(' '*4 + f"L1 Regularization: {lstm_layer.kernel_regularizer.l1}\n")
             # Check if the layer is an LSTM layer
             elif isinstance(layer, tf.keras.layers.LSTM):
                 file.write("- LSTM Layer\n")
                 file.write(' '*4 + f"* Units: {layer.units}\n")
                 file.write(' '*4 + f"* Recurrent Dropout: {layer.recurrent_dropout}\n")
+                # file.write(' '*4 + f"L1 Regularization: {lstm_layer.kernel_regularizer.l1}\n")
             # Check if the layer is a Dense layer
             elif isinstance(layer, tf.keras.layers.Dense):
                 file.write("- Output Layer\n")
