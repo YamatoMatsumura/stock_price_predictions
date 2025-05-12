@@ -2,7 +2,7 @@
 ![Graph showing output results](readme_images/output_graph.png)
 
 ## Description
-This repository contains code and analysis used for a research paper exploring the use of AI&ML approaches to predicting stock prices. The project is not a live trading bot or any sort of financial tool. It aims to showcase the accuracy and feasibility of AI&ML approaches from a simulation.
+This repository contains code and analysis used for a research paper exploring the use of AI&ML approaches to predicting stock prices. The project is not a live trading bot or any sort of financial tool. It aims to showcase the accuracy and feasibility of AI&ML approaches using simulated historical stock market conditions.
 
 ## Contents
 - `comparison/` – Graphs and CSV files used to communicate results in the research paper  
