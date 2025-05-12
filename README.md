@@ -15,4 +15,4 @@ This repository contains code and analysis used for a research paper exploring t
 
 
 ## Notes
-- Please read 'paper.pdf' for in-depth project results and conclusions
+- Please read `paper.pdf` for in-depth project results and conclusions
