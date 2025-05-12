@@ -80,7 +80,7 @@ def check_model_performance(testing_labels, predicted_labels):
     '''
     Arbitrary testing metrics. Adjust later
     '''
-    if (rmse < 5):
+    if (r_value >= 0.75):
         print("Model performed well enough")
         return True
     print("Model did not perform well enough")
@@ -111,14 +111,10 @@ def worth_buying(stock_data, predictions):
 
     max_value = max(predictions)
 
-    '''
-    Arbitrary cut off point for checking if the price is going to change enough. Change later
-    '''
-    # if (max_value > (close_df[0] + 0)):
-    #     return True
-    # print(f"Max predicted value: {max_value} is less than current price: {close_df[0]}")
-    # return False
-    return True
+    # Check if stock is predicted to go up
+    if max_value != predictions[0]:
+        return True
+    return False
 
 
 def get_sell_date(stock_data, predictions):
@@ -127,7 +123,27 @@ def get_sell_date(stock_data, predictions):
 
     max_value = max(predictions)
     max_index = predictions.index(max_value)
-    return (sim.SIMULATED_TIME + timedelta(days=max_index+1))
+
+    sell_date = sim.SIMULATED_TIME + timedelta(days=max_index+1)
+
+    # Adjust sell date as necessary based on holidays/weekends
+    historical_prices = pd.read_csv(f"data/historical_prices/{stock_data.ticker}.csv")
+    while sell_date.strftime('%Y-%m-%d') not in historical_prices['date'].values:
+        sell_date += timedelta(days=1)
+    
+    return sell_date
+
+def get_quantity(predictions):
+    predicted_change = (max(predictions) - predictions[0]) / predictions[0]
+
+    '''
+    Arbitrary scaling factor. Adjust later
+    '''
+    scaling_factor = 100
+
+    quantity = round((predicted_change * scaling_factor).numpy())
+
+    return quantity
 
 
 def stock_pick_script():
@@ -146,7 +162,6 @@ def stock_pick_script():
         else:
             print("Weekend... not pulling new data")
             continue
-
         prev_data_count = len(pd.read_csv(f'data/{stock_data.ticker}/trained_data.csv'))
 
         # Merge old and new data
@@ -155,40 +170,11 @@ def stock_pick_script():
 
         # Double check in case no new data was pulled
         if num_new_data == 0:
-            print(f"Fetched no new data for {sim.SIMULATED_TIME}... returning")
+            print(f"Fetched no new data on {sim.SIMULATED_TIME} for {stock} ... returning")
             continue
 
 
         dataUtils.save_data(stock_data.training_data, stock_data.ticker)
-
-        '''
-        from sklearn.model_selection import train_test_split
-        from sklearn.linear_model import LinearRegression, ElasticNet
-        from sklearn.metrics import mean_absolute_error, mean_squared_error
-        import numpy as np
-        from sklearn.preprocessing import StandardScaler
-
-        modified_training_data = stock_data.training_data.copy()
-        # Reverse data so model trains from oldest to newest
-        modified_training_data = modified_training_data.iloc[::-1].reset_index(drop=True)
-        # Drop Date column since only used for debugging/data alignment purposes
-        modified_training_data = modified_training_data.drop(columns=['date'])
-
-        features = modified_training_data.drop(columns=['close'])
-        labels = modified_training_data['close']
-
-        features = features.iloc[:-PREDICTION_WINDOW]
-        labels = labels.iloc[PREDICTION_WINDOW:]
-
-        training_features, testing_features, training_labels, testing_labels = train_test_split(features, labels, test_size=PREDICTION_WINDOW, shuffle=False)
-        scaler = StandardScaler()
-        training_features = scaler.fit_transform(training_features)
-        testing_features = scaler.transform(testing_features)
-
-        model = LinearRegression()
-        model.fit(training_features, training_labels)
-        predicted_labels = model.predict(testing_features)
-        '''
 
 
         # Get rid of data that the model has already trained on
@@ -230,19 +216,35 @@ def stock_pick_script():
         savingUtils.save_model(model, f'data/{stock_data.ticker}')
 
 
-
-        save_dir = f'data/debug/{stock_data.ticker}'
+        # Create graph of predictions
+        save_dir = f'data/sim_dump/{stock_data.ticker}'
         os.makedirs(save_dir, exist_ok=True)
         graph = savingUtils.create_results_graph(predicted_labels, stock_data)
-        savingUtils.save_graph(graph, save_dir, f"{sim.SIMULATED_TIME.strftime('%Y-%m-%d')}_results.png")
-        # PREDICTIONS.append(predicted_labels)
+        start_date = stock_data.training_data['date'].iloc[PREDICTION_WINDOW - 1]
+        savingUtils.save_graph(graph, save_dir, f"{start_date.strftime('%Y-%m-%d')}_results.png")
+
+        # Manual df storing predictions and dates
+        predictions_path = f'data/sim_dump/{stock_data.ticker}/predictions.csv'
+        if os.path.exists(predictions_path) and os.path.getsize(predictions_path) > 0:
+            df = pd.read_csv(f'data/sim_dump/{stock_data.ticker}/predictions.csv')
+            new_data = pd.DataFrame({'date': [start_date.strftime('%Y-%m-%d')], 'predictions': predicted_labels.tolist()})
+            df = pd.concat([df, new_data], ignore_index=True)
+        else:
+            data = {'date': [start_date.strftime('%Y-%m-%d')], 'predictions': predicted_labels.tolist()}
+            df = pd.DataFrame(data)
+        df.to_csv(f'data/sim_dump/{stock_data.ticker}/predictions.csv', index=False)
 
         # Check if model performed well enough
         if (check_model_performance(testing_labels, predicted_labels) == True):
             predictions = make_next_prediction(stock_data, feature_scaler, label_scaler)
             if (worth_buying(stock_data, predictions)):
+                quantity = get_quantity(predictions)
+                if quantity == 0:
+                    continue
+
                 sell_date = get_sell_date(stock_data, predictions)
-                sim.BUY_ORDERS[stock_data.ticker] = {'quantity': 5, 'sell_date': sell_date}
-                print(f"Queueing {stock_data.ticker} for 5 shares")
+
+                sim.BUY_ORDERS[stock_data.ticker] = {'quantity': quantity, 'sell_date': sell_date}
+                print(f"Queueing {stock_data.ticker} for {quantity} shares")
                 print(f"Buy Orders: {sim.BUY_ORDERS}")
 
