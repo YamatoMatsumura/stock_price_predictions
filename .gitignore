@@ -5,6 +5,12 @@ vpn_script.py
 data/
 *.json
 
+# MISC files
+eda/
+comparison/
+sim_dump_3000/
+testing/
+
 # Testing sandbox
 testing/
 
