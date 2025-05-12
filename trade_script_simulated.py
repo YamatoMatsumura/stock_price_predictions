@@ -1,11 +1,11 @@
 import datetime
 import pandas as pd
+import matplotlib.pyplot as plt
 
 import trading.stock_trading_utils as trade_utils
 
-
-
 import simulation_globals as sim
+import config
 
 def run_trade_script():
 
@@ -68,14 +68,63 @@ def run_trade_script():
 
 
 if __name__ == '__main__':
+    balance_history = {'date': [sim.SIMULATED_TIME.date()], 'balance': [sim.BALANCE]}
+    balance_history = pd.DataFrame(balance_history)
+    raw_balance = {'date': [sim.SIMULATED_TIME.date()], 'balance': [sim.BALANCE]}
+    raw_balance = pd.DataFrame(raw_balance)
+    last_update = sim.SIMULATED_TIME.date()
     while True:
         print(f"Simulated Time: {sim.SIMULATED_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
         run_trade_script()
         sim.SIMULATED_TIME += datetime.timedelta(minutes=30)
 
-        if sim.SIMULATED_TIME.date().month == 5 and sim.SIMULATED_TIME.date().day == 1:
+        # Update balance history every day
+        if sim.SIMULATED_TIME.date() != last_update and \
+            sim.SIMULATED_TIME.strftime('%Y-%m-%d') in pd.read_csv(f'data/historical_prices/{config.STOCK_NAMES[0]}.csv')['date'].values:
+            last_update = sim.SIMULATED_TIME.date()
+            balance = trade_utils.getNetWorthSimulated()
+            new_row = pd.DataFrame({'date': [sim.SIMULATED_TIME.date()], 'balance': [balance]})
+            balance_history = pd.concat([pd.DataFrame(balance_history), new_row], ignore_index=True)
+
+            new_row = pd.DataFrame({'date': [sim.SIMULATED_TIME.date()], 'balance': [sim.BALANCE]})
+            raw_balance = pd.concat([pd.DataFrame(raw_balance), new_row], ignore_index=True)
+
+
+            # Plotting
+            plt.figure(figsize=(10, 5))
+            plt.plot(balance_history['date'], balance_history['balance'], linestyle='-', color='blue', label='Liquid Balance')
+ 
+            # Labels and title
+            plt.title('Liquid Balance Over Time')
+            plt.xlabel('Day')
+            plt.ylabel('Balance ($)')
+            plt.grid(True)
+            plt.legend()
+            plt.ticklabel_format(style='plain', axis='y')
+
+            plt.savefig('data/sim_dump/liquid_balance_over_time.png')
+            plt.close()
+            balance_history.to_csv('data/sim_dump/liquid_balance_over_time.csv', index=False)
+
+
+            # Plotting
+            plt.figure(figsize=(10, 5))
+            plt.plot(raw_balance['date'], raw_balance['balance'], linestyle='-', color='blue', label='Raw Balance')
+
+            # Labels and title
+            plt.title('Raw Balance Over Time')
+            plt.xlabel('Day')
+            plt.ylabel('Balance ($)')
+            plt.grid(True)
+            plt.legend()
+            plt.ticklabel_format(style='plain', axis='y')
+
+            plt.savefig('data/sim_dump/raw_balance_over_time.png')
+            plt.close()
+            balance_history.to_csv('data/sim_dump/raw_balance_over_time.csv', index=False)
+
+        # End sim early for testing
+        if sim.SIMULATED_TIME.date().year == 2025 and sim.SIMULATED_TIME.date().month == 4:
             print(f"Liquid Balance: {trade_utils.getNetWorthSimulated()}")
             break
         # input("\n")
-
-
