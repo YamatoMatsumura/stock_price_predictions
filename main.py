@@ -40,63 +40,16 @@ def main():
             dataUtils.save_data(stock_data.training_data, stock_data.ticker)
         else:
             stock_data.get_existing_data()
-
+        
     
         # Reverse data so model trains from oldest to newest
         modified_training_data = stock_data.training_data.iloc[::-1].reset_index(drop=True)
         # Drop Date column since only used for debugging/data alignment purposes
         modified_training_data = modified_training_data.drop(columns=['date'])
 
-        # '''
-        # '''
-        # from sklearn.model_selection import train_test_split
-        # from sklearn.linear_model import LinearRegression, ElasticNet
-        # from sklearn.metrics import mean_absolute_error, mean_squared_error
-        # import numpy as np
-        # from sklearn.preprocessing import StandardScaler
-
-
-        # dir_path = savingUtils.create_new_dir(stock_data.ticker)
-        # features = modified_training_data.drop(columns=['close'])
-        # labels = modified_training_data['close']
-
-        # features = features.iloc[:-PREDICTION_WINDOW]
-        # labels = labels.iloc[PREDICTION_WINDOW:]
-
-        # training_features, testing_features, training_labels, testing_labels = train_test_split(features, labels, test_size=PREDICTION_WINDOW, shuffle=False)
-        # scaler = StandardScaler()
-        # training_features = scaler.fit_transform(training_features)
-        # testing_features = scaler.transform(testing_features)
-    
-        # model = ElasticNet(alpha=1.0, l1_ratio=0.5)
-        # model.fit(training_features, training_labels)
-        # predictions = model.predict(testing_features)
-        # graph = savingUtils.create_results_graph(predictions, stock_data)
-        # savingUtils.save_graph(graph, dir_path, "linear_regression.png")
-
-        # # Get evaluation metrics
-        # mae = mean_absolute_error(testing_labels, predictions)
-        # mse = mean_squared_error(testing_labels, predictions)
-        # rmse = np.sqrt(mse)
-        # r_value = np.corrcoef(testing_labels, predictions)[0, 1]
-        # with open(dir_path + "/Linear notes.txt", 'w') as file:
-        #     file.write(f"mae: {mae}\n")
-        #     file.write(f"mse: {mse}\n")
-        #     file.write(f"rmse: {rmse}\n")
-        #     file.write(f"r: {r_value}\n")
-        # continue
-        # '''
-        # '''
-
-        # '''
-        # '''
-
-
         features, labels = dataUtils.create_windowed_dataset(modified_training_data)
 
         training_features, training_labels, testing_features, testing_labels = dataUtils.split_dataset(features, labels)
-
-
 
 
         (
@@ -181,17 +134,6 @@ def main():
 
         # Save model
         savingUtils.save_model(model, dir_path)
-
-
-        # # Check if model performed well enough to go off prediction
-        # with open(f'data/{stock_data.ticker}/history.pkl', 'rb') as file:
-        #     history = pickle.load(file)
-        
-        # if (trader.check_model_performance(testing_labels, predicted_labels) == True):
-        #     predictions = trader.make_next_prediction(stock_data, feature_scaler, label_scaler)
-        #     if (trader.worth_buying(stock_data, predictions)):
-        #         print("Worth buying!!")
-        #         trader.make_trade(stock_data, predictions)
 
 
 if __name__ == '__main__':
