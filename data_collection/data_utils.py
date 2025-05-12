@@ -150,10 +150,9 @@ def clean_and_process_data(data):
 
     # Make sure no duplicates
     data.drop_duplicates(inplace=True)
-
     # Make sure dates are in right order
     data = data.sort_values(by='date', ascending=False).reset_index(drop=True)
-    
+
     return data
 
 
@@ -188,7 +187,7 @@ def get_all_tickers():
 
     STOCK_NAMES.clear()
     for dirs in os.listdir('data/'):
-        if dirs != 'historical_prices' and dirs != 'debug':
+        if dirs != 'historical_prices' and dirs != 'sim_dump':
             STOCK_NAMES.append(dirs)
 
 def get_greatest_window():
